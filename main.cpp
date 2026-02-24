@@ -28,7 +28,14 @@ int main(int argc, char* argv[])
             case '-':
                 if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) 
                 {
-                    printf("Not done yet. \n");
+                    printf("Usage: ./bitfake2 [options]\n");
+                    printf("Options:\n");
+                    printf("  -h, --help              Show this help message\n");
+                    printf("  -i, --input <file>      Input audio file path\n");
+                    printf("  -o, --output <file>     Output file path (must be .txt)\n");
+                    printf("  -f, --format <format>   Output format (default: txt)\n");
+                    printf("  -gmd, --getmetadata     Get metadata of input file\n");
+                    printf("  -grg, --getreplaygain   Get ReplayGain information of input file\n");
                     return EXIT_SUCCESS;
                 }
 
@@ -192,7 +199,56 @@ int main(int argc, char* argv[])
                 fclose(outFile);
                 yay("ReplayGain information written to output file successfully.");
             }
-         }
+
+            
+        }
+
+        if (strcmp(argv[j], "-sa") == 0 || strcmp(argv[j], "--spectralanalysis") == 0)
+        {
+            std::vector<op::SpectralAnalysisResult> results = op::SpectralAnalysisList(gb::inputFile);
+            if (results.empty())
+            {
+                err("No spectral analysis results found for input path.");
+                return EXIT_FAILURE;
+            }
+
+            plog("Spectral Analysis Result for input file(s): ");
+
+            if (gb::outputToTerminal) {
+                for (const auto& result : results)
+                {
+                    printf("----------------------\n");
+                    printf("Title: %s\n", result.title.c_str());
+                    printf("Artist: %s\n", result.artist.c_str());
+                    printf("Album: %s\n", result.album.c_str());
+                    printf("Diagnosis: %s\n", result.diagnosis.c_str());
+                    printf("Likely Lossy: %s\n", result.likelyLossy ? "Yes" : "No");
+                    printf("Frequency Cutoff: %.2f Hz\n", result.frequencyCutoff);
+                    printf("Noise Floor Elevation: %.2f dB\n", result.noiseFlorElevation);
+                    printf("Banding Score: %.2f\n", result.bandingScore);
+                }
+            } else {
+                FILE* outFile = fopen(gb::outputFile.string().c_str(), "w");
+                if (!outFile) {
+                    err("Failed to open output file for writing.");
+                    return EXIT_FAILURE;
+                }
+                for (const auto& result : results)
+                {
+                    fprintf(outFile, "----------------------\n");
+                    fprintf(outFile, "Title: %s\n", result.title.c_str());
+                    fprintf(outFile, "Artist: %s\n", result.artist.c_str());
+                    fprintf(outFile, "Album: %s\n", result.album.c_str());
+                    fprintf(outFile, "Diagnosis: %s\n", result.diagnosis.c_str());
+                    fprintf(outFile, "Likely Lossy: %s\n", result.likelyLossy ? "Yes" : "No");
+                    fprintf(outFile, "Frequency Cutoff: %.2f Hz\n", result.frequencyCutoff);
+                    fprintf(outFile, "Noise Floor Elevation: %.2f dB\n", result.noiseFlorElevation);
+                    fprintf(outFile, "Banding Score: %.2f\n", result.bandingScore);
+                }
+                fclose(outFile);
+                yay("Spectral analysis results written to output file successfully.");
+            }
+        }
     }
 
     return 0;

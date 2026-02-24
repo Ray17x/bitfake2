@@ -69,6 +69,17 @@ namespace Operations
         std::string releaseDate;
     };
     
+    struct SpectralAnalysisResult
+    {
+        std::string title;
+        std::string artist;
+        std::string album;
+        bool likelyLossy;
+        float frequencyCutoff;      // Where high-freq content drops sharply
+        float noiseFlorElevation;   // Elevated noise floor vs expected
+        float bandingScore;         // Presence of quantization banding (0-1)
+        std::string diagnosis;      // Human readable summary
+    };
 
     // Function Declarations:
     
@@ -77,7 +88,13 @@ namespace Operations
     std::vector<AudioMetadataResult> GetMetaDataList(const fs::path& path);
     ReplayGainInfo GetReplayGain(const fs::path& path);
     std::vector<ReplayGainResult> GetReplayGainList(const fs::path& path);
+    SpectralAnalysisResult SpectralAnalysis(const fs::path& path);
+    std::vector<SpectralAnalysisResult> SpectralAnalysisList(const fs::path& path);
+    
+    // Implemented later because it requires network access and more complex logic!!
     MusicBrainzInfo GetMusicBrainzInfo(const fs::path& path);
+
+
     
     // Core operations
     void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format);

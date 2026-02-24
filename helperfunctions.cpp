@@ -1,5 +1,6 @@
 #include <cstdlib>
-#include <stdio.h>
+#include <cmath>
+#include <cfloat>
 #include "Utilites/consoleout.hpp"
 using namespace ConsoleOut;
 #include <filesystem>
@@ -15,6 +16,7 @@ namespace op = Operations;
 #include <taglib/tpropertymap.h>
 #include <taglib/xiphcomment.h>
 #include <regex>
+#include <fftw3.h>
 
 /*
     helperfunctions.cpp
@@ -266,6 +268,197 @@ namespace Operations
         results.push_back({path, GetReplayGain(path)});
         return results;
     } // GetReplayGainList
+
+     SpectralAnalysisResult SpectralAnalysis(const fs::path& path)
+    {
+        SpectralAnalysisResult tmpresult;
+        std::vector<float> samples;
+        const int BUFFER_SIZE = 4096;
+        const int FFT_SIZE = 4096;
+
+        float buffer[BUFFER_SIZE];
+        size_t bytesRead;
+
+        if (!fs::exists(path) || !fs::is_regular_file(path))
+        {
+            err("Spectral analysis failed: file does not exist/is not a regular file.");
+            tmpresult.diagnosis = "Error: File not found or invalid.";
+            return tmpresult;
+        }
+
+        std::string ffmpegCmd = "ffmpeg -loglevel quiet -i \"" + path.string() + "\" -f f32le -acodec pcm_f32le pipe:1";
+        
+        FILE* pipe = popen(ffmpegCmd.c_str(), "r");
+        if (!pipe)
+        {
+            err("Spectral analysis failed: could not open ffmpeg pipe.");
+            tmpresult.diagnosis = "Error: Failed to execute ffmpeg.";
+            return tmpresult;
+        }
+
+        while ((bytesRead = fread(buffer, sizeof(float), BUFFER_SIZE, pipe)) > 0)
+        {
+            samples.insert(samples.end(), buffer, buffer + bytesRead);
+        }
+        pclose(pipe);
+
+        if (samples.empty())
+        {
+            err("Spectral analysis failed: ffmpeg produced no audio data.");
+            tmpresult.diagnosis = "Error: ffmpeg failed or file is invalid.";
+            return tmpresult;
+        }
+
+        int numChunks = samples.size() / FFT_SIZE;
+        if (numChunks == 0)
+        {
+            err("Spectral analysis failed: insufficient audio samples.");
+            tmpresult.diagnosis = "Error: Not enough samples for analysis.";
+            return tmpresult;
+        }
+
+        // Setup FFT
+        fftw_plan plan;
+        fftw_complex *in, *out;
+        in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
+        out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
+        plan = fftw_plan_dft_1d(FFT_SIZE, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+        std::vector<float> MeanMagnitude(FFT_SIZE / 2, 0.0f);
+
+        int actualChunks = 0;
+        for (int chunk = 0; chunk < numChunks && chunk < 500; chunk++)
+        {
+            for (int i = 0; i < FFT_SIZE; i++)
+            {
+                in[i][0] = samples[chunk * FFT_SIZE + i];
+                in[i][1] = 0.0;
+            }
+
+            fftw_execute(plan);
+
+            for (int i = 0; i < FFT_SIZE / 2; i++)
+            {
+                float magnitude = sqrt(out[i][0] * out[i][0] + out[i][1] * out[i][1]);
+                MeanMagnitude[i] += magnitude;
+            }
+            actualChunks++;
+        }
+
+        if (actualChunks > 0) {
+            for (int i = 0; i < FFT_SIZE / 2; i++) {
+                MeanMagnitude[i] /= actualChunks;
+            }
+        }
+
+        TagLib::FileRef fileRef(path.string().c_str());
+        float sampleRate = fileRef.audioProperties() ? fileRef.audioProperties()->sampleRate() : 44100.0f;
+        int bitrate = fileRef.audioProperties() ? fileRef.audioProperties()->bitrate() : 0;  // Get bitrate metadata
+        float freqPerBin = sampleRate / FFT_SIZE;
+
+        std::vector<float> bandEnergies(10, 0.0f);
+        int bandSize = (FFT_SIZE / 2) / 10;
+        
+        for (int b = 0; b < 10; b++)
+        {
+            for (int i = b * bandSize; i < (b + 1) * bandSize && i < FFT_SIZE / 2; i++)
+            {
+                bandEnergies[b] += MeanMagnitude[i];
+            }
+            bandEnergies[b] /= bandSize;
+        }
+        
+        // stats
+        float bandMean = 0.0f;
+        for (float e : bandEnergies) bandMean += e;
+        bandMean /= 10.0f;
+        
+        float bandVariance = 0.0f;
+        for (float e : bandEnergies)
+        {
+            float diff = e - bandMean;
+            bandVariance += diff * diff;
+        }
+        bandVariance /= 10.0f;
+        float bandStdDev = sqrt(bandVariance);
+        float coefficientOfVariation = bandMean > 0 ? (bandStdDev / bandMean) : 0.0f;
+
+        tmpresult.frequencyCutoff = sampleRate / 2.0f;  // Nyquist
+        
+        // Multi-metric detection: spectral analysis + bitrate heuristic
+        // High CV > 1.95 = lossy (catches high-bitrate MP3)
+        // Low-Medium CV with 32-400 kbps = likely MP3 (catches V0, V1, V9, etc.)
+        // Low CV with variable/0 bitrate = likely lossless (FLAC, WAV, etc.)
+        bool spectralLossy = coefficientOfVariation > 1.95f;
+        bool bitrateLossy = (bitrate > 32 && bitrate < 400);  // Catch all MP3 VBR variants
+        tmpresult.likelyLossy = spectralLossy || bitrateLossy;
+        
+        tmpresult.noiseFlorElevation = coefficientOfVariation * 100.0f;
+        tmpresult.bandingScore = coefficientOfVariation;
+
+        if (tmpresult.likelyLossy)
+        {
+            tmpresult.diagnosis = "Likely lossy: Uneven spectrum distribution detected.";
+        }
+        else
+        {
+            tmpresult.diagnosis = "Likely lossless: Even spectrum distribution detected.";
+        }
+
+        fftw_destroy_plan(plan);
+        fftw_free(in);
+        fftw_free(out);
+
+        tmpresult.title = fileRef.tag() ? fileRef.tag()->title().to8Bit(true) : "";
+        tmpresult.artist = fileRef.tag() ? fileRef.tag()->artist().to8Bit(true) : "";
+        tmpresult.album = fileRef.tag() ? fileRef.tag()->album().to8Bit(true) : "";
+
+        return tmpresult;
+    } // SpectralAnalysis
+
+    std::vector<SpectralAnalysisResult> SpectralAnalysisList(const fs::path& path)
+    {
+        std::vector<SpectralAnalysisResult> results;
+
+        if (!fs::exists(path))
+        {
+            warn("Spectral analysis list failed: input path does not exist.");
+            return results;
+        }
+
+        if (fs::is_directory(path))
+        {
+            for (const auto& entry : fs::directory_iterator(path))
+            {
+                if (fc::IsValidAudioFile(entry.path()))
+                {
+                    results.push_back(SpectralAnalysis(entry.path()));
+                }
+            }
+
+            if (results.empty())
+            {
+                warn("Spectral analysis list: no valid audio files found in directory.");
+            }
+            else
+            {
+                std::sort(results.begin(), results.end(),
+                    [](const SpectralAnalysisResult& a, const SpectralAnalysisResult& b)
+                    {
+                        return a.title < b.title; // Sort by title for simplicity
+                    });
+            }
+            return results;
+        }
+
+        if (!fc::IsValidAudioFile(path))
+        {
+            warn("Spectral analysis list failed: input file is not a valid audio file.");
+            return results;
+        }
+
+        results.push_back(SpectralAnalysis(path));
+        return results;
+    } // SpectralAnalysisList
 } // namespace Operations
 
 // constexpr AudioMetadata GetMetaData(const fs::path& path);

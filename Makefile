@@ -1,6 +1,6 @@
 CXX := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -I./Utilites
-LDFLAGS := -ltag
+LDFLAGS := -ltag -lfftw3
 
 SRC := main.cpp helperfunctions.cpp filechecks.cpp globals.cpp
 OBJ := $(SRC:.cpp=.o)

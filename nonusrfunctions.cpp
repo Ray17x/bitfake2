@@ -24,7 +24,7 @@ namespace Operations
         // a dictionary for mapping string to enum values.
 
         static const std::unordered_map<std::string, AudioFormat> formatMap = {
-            {"mp3", AudioFormat::MP3},
+            {"mp3", AudioFormat::MP3}, // fuck
             {"ogg", AudioFormat::OGG},
             {"m4a", AudioFormat::M4A},
             {"wav", AudioFormat::WAV},

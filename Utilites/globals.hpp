@@ -14,5 +14,6 @@ namespace globals
 	extern op::AudioFormat outputFormat;
 	extern bool outputToTerminal;
 	extern op::AudioFormat desiredFormat;
+	extern std::string version;
 }
 #endif

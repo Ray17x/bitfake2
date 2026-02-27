@@ -77,6 +77,14 @@ int main(int argc, char* argv[])
                     }
                 }
 
+                if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) 
+                {
+                    printf("bitfake ver %s\n", gb::version.c_str());
+                    printf("License: GPL-3.0\n");
+                    printf("ty for using my cli <3, enjoy :D\n");
+                    return EXIT_SUCCESS;
+                }
+
                 // This first pass is only for grabbing input and output files, so we can apply it to other commands later!
                 break;
         }
@@ -206,6 +214,7 @@ int main(int argc, char* argv[])
         if (strcmp(argv[j], "-sa") == 0 || strcmp(argv[j], "--spectralanalysis") == 0)
         {
             std::vector<op::SpectralAnalysisResult> results = op::SpectralAnalysisList(gb::inputFile);
+            warn("If a song's bitrate is >44.1kHz, results may be inaccurate due to the limitations of my SKILLs.");
             if (results.empty())
             {
                 err("No spectral analysis results found for input path.");

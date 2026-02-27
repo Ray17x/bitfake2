@@ -17,6 +17,7 @@ namespace op = Operations;
 #include <taglib/xiphcomment.h>
 #include <regex>
 #include <fftw3.h>
+#include <cctype>
 
 /*
     helperfunctions.cpp
@@ -173,51 +174,169 @@ namespace Operations
             return tmpdata;
         }
 
+        // Still reliable for getting basic stuff
+
         tmpdata.title = fileRef.tag()->title().to8Bit(true);
         tmpdata.artist = fileRef.tag()->artist().to8Bit(true);
         tmpdata.album = fileRef.tag()->album().to8Bit(true);
         tmpdata.trackNumber = fileRef.tag()->track();
 
-        // Get Xiph comment for ReplayGain (works for Opus, Vorbis, FLAC, etc.)
-        if (auto* xc = dynamic_cast<TagLib::Ogg::XiphComment*>(fileRef.file()->tag()))
+
+        // // Get Xiph comment for ReplayGain (works for Opus, Vorbis, FLAC, etc.)
+        // if (auto* xc = dynamic_cast<TagLib::Ogg::XiphComment*>(fileRef.file()->tag()))
+        // {
+        //     auto fields = xc->fieldListMap();
+            
+        //     // Extract ReplayGain values and remove the "dB" suffix
+        //     if (fields.find("REPLAYGAIN_TRACK_GAIN") != fields.end() && !fields["REPLAYGAIN_TRACK_GAIN"].isEmpty())
+        //     {
+        //         std::string gainStr = fields["REPLAYGAIN_TRACK_GAIN"][0].to8Bit(true);
+        //         // Remove " dB" suffix if present
+        //         gainStr = std::regex_replace(gainStr, std::regex(" dB$"), "");
+        //         try {
+        //             tmpdata.trackGain = std::stof(gainStr);
+        //         } catch (...) {}
+        //     }
+            
+        //     if (fields.find("REPLAYGAIN_TRACK_PEAK") != fields.end() && !fields["REPLAYGAIN_TRACK_PEAK"].isEmpty())
+        //     {
+        //         std::string peakStr = fields["REPLAYGAIN_TRACK_PEAK"][0].to8Bit(true);
+        //         try {
+        //             tmpdata.trackPeak = std::stof(peakStr);
+        //         } catch (...) {}
+        //     }
+            
+        //     if (fields.find("REPLAYGAIN_ALBUM_GAIN") != fields.end() && !fields["REPLAYGAIN_ALBUM_GAIN"].isEmpty())
+        //     {
+        //         std::string gainStr = fields["REPLAYGAIN_ALBUM_GAIN"][0].to8Bit(true);
+        //         gainStr = std::regex_replace(gainStr, std::regex(" dB$"), "");
+        //         try {
+        //             tmpdata.albumGain = std::stof(gainStr);
+        //         } catch (...) {}
+        //     }
+            
+        //     if (fields.find("REPLAYGAIN_ALBUM_PEAK") != fields.end() && !fields["REPLAYGAIN_ALBUM_PEAK"].isEmpty())
+        //     {
+        //         std::string peakStr = fields["REPLAYGAIN_ALBUM_PEAK"][0].to8Bit(true);
+        //         try {
+        //             tmpdata.albumPeak = std::stof(peakStr);
+        //         } catch (...) {}
+        //     }
+        // }
+
+        // It does not work. I am now sad. :(
+
+        // Get ReplayGain tags via ffprobe from both container and stream scopes.
+        std::string ffprbCmd =
+            "ffprobe -v error -select_streams a:0 "
+            "-show_entries "
+            "format_tags=REPLAYGAIN_TRACK_GAIN,REPLAYGAIN_TRACK_PEAK,REPLAYGAIN_ALBUM_GAIN,REPLAYGAIN_ALBUM_PEAK:"
+            "stream_tags=REPLAYGAIN_TRACK_GAIN,REPLAYGAIN_TRACK_PEAK,REPLAYGAIN_ALBUM_GAIN,REPLAYGAIN_ALBUM_PEAK "
+            "-of default=noprint_wrappers=1 \"" + path.string() + "\"";
+        FILE* pipe = popen(ffprbCmd.c_str(), "r");
+        if (!pipe)
         {
-            auto fields = xc->fieldListMap();
-            
-            // Extract ReplayGain values and remove the "dB" suffix
-            if (fields.find("REPLAYGAIN_TRACK_GAIN") != fields.end() && !fields["REPLAYGAIN_TRACK_GAIN"].isEmpty())
+            warn("ReplayGain read warning: failed to execute ffprobe for replay gain extraction.");
+            return tmpdata;
+        }
+
+        auto trim = [](std::string& value)
+        {
+            const auto first = value.find_first_not_of(" \n\r\t");
+            if (first == std::string::npos)
             {
-                std::string gainStr = fields["REPLAYGAIN_TRACK_GAIN"][0].to8Bit(true);
-                // Remove " dB" suffix if present
-                gainStr = std::regex_replace(gainStr, std::regex(" dB$"), "");
-                try {
-                    tmpdata.trackGain = std::stof(gainStr);
-                } catch (...) {}
+                value.clear();
+                return;
             }
-            
-            if (fields.find("REPLAYGAIN_TRACK_PEAK") != fields.end() && !fields["REPLAYGAIN_TRACK_PEAK"].isEmpty())
+            const auto last = value.find_last_not_of(" \n\r\t");
+            value = value.substr(first, last - first + 1);
+        };
+
+        auto parseReplayGainValue = [&trim](std::string value, float& output) -> bool
+        {
+            trim(value);
+            if (value.empty())
             {
-                std::string peakStr = fields["REPLAYGAIN_TRACK_PEAK"][0].to8Bit(true);
-                try {
-                    tmpdata.trackPeak = std::stof(peakStr);
-                } catch (...) {}
+                return false;
             }
-            
-            if (fields.find("REPLAYGAIN_ALBUM_GAIN") != fields.end() && !fields["REPLAYGAIN_ALBUM_GAIN"].isEmpty())
+
+            if (value.size() >= 2)
             {
-                std::string gainStr = fields["REPLAYGAIN_ALBUM_GAIN"][0].to8Bit(true);
-                gainStr = std::regex_replace(gainStr, std::regex(" dB$"), "");
-                try {
-                    tmpdata.albumGain = std::stof(gainStr);
-                } catch (...) {}
+                char c1 = static_cast<char>(std::tolower(static_cast<unsigned char>(value[value.size() - 2])));
+                char c2 = static_cast<char>(std::tolower(static_cast<unsigned char>(value[value.size() - 1])));
+                if (c1 == 'd' && c2 == 'b')
+                {
+                    value.erase(value.size() - 2);
+                    trim(value);
+                }
             }
-            
-            if (fields.find("REPLAYGAIN_ALBUM_PEAK") != fields.end() && !fields["REPLAYGAIN_ALBUM_PEAK"].isEmpty())
+
+            try
             {
-                std::string peakStr = fields["REPLAYGAIN_ALBUM_PEAK"][0].to8Bit(true);
-                try {
-                    tmpdata.albumPeak = std::stof(peakStr);
-                } catch (...) {}
+                output = std::stof(value);
+                return true;
             }
+            catch (...)
+            {
+                return false;
+            }
+        };
+
+        char buffer[128];
+        bool foundTrackGain = false;
+        bool foundTrackPeak = false;
+        bool foundAlbumGain = false;
+        bool foundAlbumPeak = false;
+
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
+        {
+            std::string line(buffer);
+
+            trim(line);
+            if (line.empty())
+            {
+                continue;
+            }
+
+            const auto equalsPos = line.find('=');
+            if (equalsPos == std::string::npos || equalsPos == 0)
+            {
+                continue;
+            }
+
+            std::string key = line.substr(0, equalsPos);
+            std::string value = line.substr(equalsPos + 1);
+
+            if (key.rfind("TAG:", 0) == 0)
+            {
+                key = key.substr(4);
+            }
+
+            std::transform(key.begin(), key.end(), key.begin(),
+                [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+
+            if (key == "REPLAYGAIN_TRACK_GAIN" && parseReplayGainValue(value, tmpdata.trackGain))
+            {
+                foundTrackGain = true;
+            }
+            else if (key == "REPLAYGAIN_TRACK_PEAK" && parseReplayGainValue(value, tmpdata.trackPeak))
+            {
+                foundTrackPeak = true;
+            }
+            else if (key == "REPLAYGAIN_ALBUM_GAIN" && parseReplayGainValue(value, tmpdata.albumGain))
+            {
+                foundAlbumGain = true;
+            }
+            else if (key == "REPLAYGAIN_ALBUM_PEAK" && parseReplayGainValue(value, tmpdata.albumPeak))
+            {
+                foundAlbumPeak = true;
+            }
+        }
+        pclose(pipe);
+
+        if (!(foundTrackGain || foundTrackPeak || foundAlbumGain || foundAlbumPeak))
+        {
+            warn("ReplayGain read warning: ffprobe did not return expected replay gain tags.");
         }
 
         return tmpdata;

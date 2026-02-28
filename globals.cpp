@@ -7,5 +7,5 @@ namespace globals
     op::AudioFormat outputFormat = op::AudioFormat::MP3;
     op::VBRQualities VBRQuality;
     bool outputToTerminal = true;
-    std::string version = "0.0.1-alpha"; // Pls dont change me :D
+    std::string version = "0.0.3-alpha"; // Pls dont change me :D
 }

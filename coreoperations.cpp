@@ -39,6 +39,9 @@ namespace Operations
 
         std::string_view lib = op::ConversionLibMap.at(format); // declare lib to hold name of lib when plugging into cmd
 
+        // continue implementation
+        
+
         // each format has a specific library that we will use to convert to
     }
 }

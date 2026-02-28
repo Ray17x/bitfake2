@@ -7,6 +7,9 @@ namespace gb = globals;
 #include "Utilites/consoleout.hpp"
 #include <algorithm>
 using namespace ConsoleOut;
+#include <taglib/fileref.h>
+#include <taglib/tpropertymap.h>
+namespace tl = TagLib;
 
 namespace Operations
 {
@@ -110,8 +113,41 @@ namespace Operations
         plog("MP3: V0, V1, V2, V3, V4, V5, V6, V7, V8, V9");
         plog("OGG VORBIS: Q0, Q3, Q6, Q9, Q10");
         plog("FLAC encoding levels: L0, L1, L2, L3, L4, L5, L6, L7, L8");
-        printf("hint: L8 is the slowest but highest compression level for FLAC, while V0 is the highest quality/slowest for MP3 :D\n");
+        printf("hint: L8 is the slowest but highest compression level for FLAC, V0 is the highest quality for MP3\n");
+        printf("hint: and for OGG VORBIS, Q10 is the highest quality :D\n");
         exit(EXIT_FAILURE);
     }
+
+    class MetaDataChange
+    {
+        public:
+            void StageMetaDataChanges(tl::PropertyMap& drawer, std::string key, const std::string& value)
+            {
+                std::transform(key.begin(), key.end(), key.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+                drawer[key] = tl::String(value);
+            }
+
+            bool CommitMetaDataChanges(const std::filesystem::path& path, const tl::PropertyMap& drawer)
+            {
+                tl::FileRef f(path.c_str());
+                if (f.isNull() || !f.tag()) {
+                    err("Failed to open file for metadata commit");
+                    return false;
+                }
+
+                tl::PropertyMap existingProps = f.file()->properties();
+        
+                for(auto const& [key, val] : drawer) {
+                existingProps[key] = val;
+                }
+
+                f.file()->setProperties(existingProps);
+                return f.file()->save();
+            }
+
+
+    };
+
 
 }

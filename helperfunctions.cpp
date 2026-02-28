@@ -534,6 +534,8 @@ namespace Operations
         results.push_back(SpectralAnalysis(path));
         return results;
     } // SpectralAnalysisList
+
+    
 } // namespace Operations
 
 // constexpr AudioMetadata GetMetaData(const fs::path& path);

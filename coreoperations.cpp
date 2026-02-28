@@ -28,5 +28,5 @@ namespace Operations
 
     // TODO FIRST:
     // define void ApplyMetaDataTag(const fs::path& path, const std::string& tag, const std::string& value);
-    // Needed for some functions.
+    // Needed for some functions. (found in nonusrfunctions.cpp) 
 }

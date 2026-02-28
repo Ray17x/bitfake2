@@ -11,6 +11,7 @@ namespace fc = FileChecks;
 #include <filesystem>
 namespace fs = std::filesystem;
 
+
 namespace Operations
 {
 
@@ -94,7 +95,8 @@ namespace Operations
     // Non-user functions
     AudioFormat StringToAudioFormat(const std::string& str);
     VBRQualities StringToVBRQuality(const std::string& str);
-    void ApplyMetaDataTag(const fs::path& path, const std::string& tag, const std::string& value);
+    void StageMetaDataChanges(TagLib::PropertyMap& drawer, std::string key, const std::string& value);
+    bool CommitMetaDataChanges(const std::filesystem::path& path, const TagLib::PropertyMap& drawer);
     
     // Helper functions
     AudioMetadata GetMetaData(const fs::path& path);

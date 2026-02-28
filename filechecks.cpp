@@ -88,4 +88,40 @@ bool IsTrueAudio(const fs::path& path)
     return false;
 }
 
+bool IsSpecficAudioFormat(const fs::path& path, op::AudioFormat format)
+{
+    if (!IsTrueAudio(path)) {
+        return false; // Not a valid audio file
+    }
+
+    FILE* file = fopen(path.string().c_str(), "rb");
+    if (!file) {
+        err("Failed to open file for reading.");
+        return false;
+    }
+
+    unsigned char buffer[12];
+    size_t bytesRead = fread(buffer, 1, sizeof(buffer), file);
+    fclose(file);
+
+    if (bytesRead < 12) {
+        warn("File is too small to be a valid audio file.");
+        return false;
+    }
+
+    switch (format) {
+        case op::AudioFormat::MP3:
+            return (memcmp(buffer, "ID3", 3) == 0 || (buffer[0] == 0xFF && (buffer[1] & 0xE0) == 0xE0));
+        case op::AudioFormat::WAV:
+            return (memcmp(buffer, "RIFF", 4) == 0 && memcmp(buffer + 8, "WAVE", 4) == 0);
+        case op::AudioFormat::FLAC:
+            return (memcmp(buffer, "fLaC", 4) == 0);
+        case op::AudioFormat::OGG:
+            return (memcmp(buffer, "OggS", 4) == 0);
+        // Add more cases for other formats as needed
+        default:
+            warn("Unsupported audio format specified for checking.");
+            return false;
+    }
+
 } // namespace FileChecks

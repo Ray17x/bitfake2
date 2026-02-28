@@ -26,7 +26,19 @@ namespace Operations
     // void ApplyReplayGain(const fs::path& path, float trackGain, float albumGain);
     // void CalculateReplayGain(const fs::path& path); 
 
-    // TODO FIRST:
-    // define void ApplyMetaDataTag(const fs::path& path, const std::string& tag, const std::string& value);
-    // Needed for some functions. (found in nonusrfunctions.cpp) 
+    // We can now begin implementing these fuckass features:
+
+    void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format, VBRQualities quality)
+    {
+        if (!fc::IsSpecficAudioFormat(inputPath, op::AudioFormat::FLAC) || !fc::IsSpecficAudioFormat(inputPath, op::AudioFormat::WAV))
+        {
+            warn("Input file is not a lossless file. Conversion may result in quality loss. :(");
+        }
+
+        int qualval = static_cast<int>(quality);
+
+        std::string_view lib = op::ConversionLibMap.at(format); // declare lib to hold name of lib when plugging into cmd
+
+        // each format has a specific library that we will use to convert to
+    }
 }

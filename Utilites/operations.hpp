@@ -9,6 +9,8 @@ namespace fc = FileChecks;
 #include <string_view>
 #include <vector>
 #include <filesystem>
+#include <taglib/fileref.h>
+#include <taglib/tag.h>
 namespace fs = std::filesystem;
 
 
@@ -26,15 +28,26 @@ namespace Operations
         OPUS, AIFF, AU, RA, GA3, AMR, AWB,
         DSS, DVF, M4B, M4P, MMF, MPC, MSV,
         NMF, OGA, RAW, RF64, SLN, TTA, VOC,
-        VOX, WV, WEBM, SVX8, CDA
+        VOX, WV, WEBM, SVX8, CDA, GENERAL
+        // General used for things we don't need a specfic format for
     };
 
-    enum class VBRQualities
+    enum class VBRQualities : int
     {
-        V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, // MP3
-        Q0, Q3, Q6, Q9, Q10, // OGG VORBIS
-        L0, L1, L2, L3, L4, L5, L6, L7, L8 // FLAC encoding lvls (not rlly quality based but w/e)
-        // more to add l8r
+    V0 = 0, V1 = 1, V2 = 2, V3 = 3, V4 = 4, V5 = 5, V6 = 6, V7 = 7, V8 = 8, V9 = 9, // MP3
+    Q0 = 0, Q3 = 3, Q6 = 6, Q9 = 9, Q10 = 10, // OGG VORBIS
+    L0 = 0, L1 = 1, L2 = 2, L3 = 3, L4 = 4, L5 = 5, L6 = 6, L7 = 7, L8 = 8 // FLAC
+    };
+
+    std::map<AudioFormat, std::string> ConversionLibMap
+    {
+        {AudioFormat::MP3, "libmp3lame"},
+        {AudioFormat::OGG, "libvorbis"},
+        {AudioFormat::FLAC, "libflac"},
+        {AudioFormat::AAC, "libfdk-aac"},
+        {AudioFormat::OPUS, "libopus"},
+        {AudioFormat::WAV, "pcm_s16le"},
+        {AudioFormat::GENERAL, "libavcodec"}
     };
 
     struct AudioMetadata
@@ -110,7 +123,7 @@ namespace Operations
     MusicBrainzInfo GetMusicBrainzInfo(const fs::path& path);
 
     // Core operations
-    void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format);
+    void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format, VBRQualities quality);
     void MassTagDirectory(const fs::path& dirPath, const std::string& tag, const std::string& value);
     void ApplyReplayGain(const fs::path& path, float trackGain, float albumGain);
     void CalculateReplayGain(const fs::path& path); 

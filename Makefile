@@ -4,7 +4,7 @@ LDFLAGS := -ltag -lfftw3
 
 SRC := main.cpp helperfunctions.cpp filechecks.cpp globals.cpp nonusrfunctions.cpp coreoperations.cpp
 OBJ := $(SRC:.cpp=.o)
-BIN := bitfake2
+BIN := bitf
 
 .PHONY: all clean
 

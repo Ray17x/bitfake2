@@ -35,13 +35,25 @@ namespace Operations
             warn("Input file is not a lossless file. Conversion may result in quality loss. :(");
         }
 
+
+        /* Redundant check here, alr implemnted after strcmp passes for a -cvrt / --convert flag */
+
+        // // Output path here will be the global var -po if specified.
+        // if (!fs::exists(outputPath) || !fs::is_directory(outputPath))
+        // {
+        //     err("Output path does not exist or is not a regular file!");
+        //     return; // exit function early due to invalid output path
+        // }
+
+
+        // Get qual val from enum class and that plugs into ffmpegCmd string
         int qualval = static_cast<int>(quality);
 
         std::string_view lib = op::ConversionLibMap.at(format); // declare lib to hold name of lib when plugging into cmd
+        std::string ffmpegCmd = "ffmpeg -i \"" + inputPath.string() + "\" -c:a " + op::ConversionLibMap.at(op::AudioFormat::GENERAL) + "-q:a " + std::to_string(qualval) + " \"" + outputPath.string() + "\"";
 
-        // continue implementation
-        
-
-        // each format has a specific library that we will use to convert to
+        // Build ffmpeg command
+        plog("Built ffmpeg command: ");
+        yay(ffmpegCmd.c_str());
     }
 }

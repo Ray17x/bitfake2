@@ -15,5 +15,6 @@ namespace globals
 	extern bool outputToTerminal;
 	extern op::VBRQualities VBRQuality;
 	extern std::string version;
+	extern fs::path conversionOutputDirectory; // For storing converted files if -po/--pathout is specified
 }
 #endif

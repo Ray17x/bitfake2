@@ -3,8 +3,6 @@
 
 #include "consoleout.hpp"
 using namespace ConsoleOut;
-#include "filechecks.hpp"
-namespace fc = FileChecks;
 #include <array>
 #include <string_view>
 #include <vector>
@@ -39,7 +37,7 @@ namespace Operations
     L0 = 0, L1 = 1, L2 = 2, L3 = 3, L4 = 4, L5 = 5, L6 = 6, L7 = 7, L8 = 8 // FLAC
     };
 
-    std::map<AudioFormat, std::string> ConversionLibMap
+    static std::map<AudioFormat, std::string> ConversionLibMap
     {
         {AudioFormat::MP3, "libmp3lame"},
         {AudioFormat::OGG, "libvorbis"},
@@ -77,6 +75,8 @@ namespace Operations
         float albumGain;
         float albumPeak;
     };
+
+
 
     struct ReplayGainResult
     {
@@ -126,7 +126,8 @@ namespace Operations
     void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format, VBRQualities quality);
     void MassTagDirectory(const fs::path& dirPath, const std::string& tag, const std::string& value);
     void ApplyReplayGain(const fs::path& path, float trackGain, float albumGain);
-    void CalculateReplayGain(const fs::path& path); 
+    void CalculateReplayGain(const fs::path& path, bool AlbumGainsAndPeaks = false); 
+    
 
 }
 

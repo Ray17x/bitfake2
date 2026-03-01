@@ -29,12 +29,15 @@ int main(int argc, char* argv[])
                 {
                     printf("Usage: ./bitfake2 [options]\n");
                     printf("Options:\n");
-                    printf("  -h, --help              Show this help message\n");
-                    printf("  -i, --input <file>      Input audio file path\n");
-                    printf("  -o, --output <file>     Output file path (must be .txt)\n");
-                    printf("  -f, --format <fmt[:q]>  Conversion type (e.g. mp3:V0, flac:L8, wav)\n");
-                    printf("  -gmd, --getmetadata     Get metadata of input file\n");
-                    printf("  -grg, --getreplaygain   Get ReplayGain information of input file\n");
+                    printf("  -h, --help\t\t\t Show this help message\n");
+                    printf("  -i, --input <file>\t\t Input audio file path\n");
+                    printf("  -o, --output <file>\t\t Output file path (must be .txt)\n");
+                    printf("  -po, --pathout <directory>\t Output directory path for conversion functions\n");
+                    printf("  -f, --format <fmt[:q]>\t Conversion type (e.g. mp3:V0, flac:L8, wav)\n");
+                    printf("  -gmd, --getmetadata\t\t Get metadata of input file\n");
+                    printf("  -grg, --getreplaygain\t\t Get ReplayGain information of input file\n");
+                    printf("  -sa, --spectralanalysis\t Perform spectral analysis on input file\n");
+                    printf("  -v, --version\t\t\t Show program version\n");
                     return EXIT_SUCCESS;
                 }
 
@@ -86,6 +89,16 @@ int main(int argc, char* argv[])
                     }
                 }
 
+                if (strcmp(argv[i], "--pathout") == 0 || strcmp(argv[i], "-po") == 0) 
+                {
+                    if (i + 1 < argc) {
+                        plog("Conversion output directory specified in flag: ");
+                        yay(argv[i + 1]);
+                        gb::conversionOutputDirectory = argv[i + 1];
+                        i++; // Skip the next argument since it's the output directory
+                    }
+                }
+
                 if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) 
                 {
                     printf("bitfake ver %s\n", gb::version.c_str());
@@ -108,21 +121,21 @@ int main(int argc, char* argv[])
     // if (fmt == 1 && (q < 10 || q > 14)) { /* OGG: Q0..Q10 */ }
     // if (fmt == 4 && (q < 15 || q > 23)) { /* FLAC: L0..L8 */ }
 
-    if (fmt == 0 && !static_cast<int>(gb::VBRQuality) < 0 || !static_cast<int>(gb::VBRQuality) > 8)
+    if (fmt == 0 && static_cast<int>(gb::VBRQuality) < 0 || static_cast<int>(gb::VBRQuality) > 8)
     {
         err("MP3 format requires a VBR quality between V0 and V8 (inclusive)! (Do not use Qx or Lx for MP3! :( )");
         printf("format=%d quality=%d\n", static_cast<int>(gb::outputFormat), static_cast<int>(gb::VBRQuality));
         return EXIT_FAILURE;
     }
 
-    if (fmt == 1 && static_cast<int>(gb::VBRQuality) < 9 || !static_cast<int>(gb::VBRQuality) > 13)
+    if (fmt == 1 && static_cast<int>(gb::VBRQuality) < 9 || static_cast<int>(gb::VBRQuality) > 13)
     {
         err("OGG VORBIS format requires a VBR quality between Q0 and Q10 (inclusive)! (Do not use Vx or Lx for OGG! :( )");
         printf("format=%d quality=%d\n", static_cast<int>(gb::outputFormat), static_cast<int>(gb::VBRQuality));
         return EXIT_FAILURE;
     }
 
-    if (fmt == 4 && !static_cast<int>(gb::VBRQuality) < 14 || !static_cast<int>(gb::VBRQuality) > 22)
+    if (fmt == 4 && static_cast<int>(gb::VBRQuality) < 14 || static_cast<int>(gb::VBRQuality) > 22)
     {
         err("FLAC format requires an encoding level between L0 and L8 (inclusive)! (Do not use Vx or Qx for FLAC! :( )");
         printf("format=%d quality=%d\n", static_cast<int>(gb::outputFormat), static_cast<int>(gb::VBRQuality));
@@ -130,6 +143,8 @@ int main(int argc, char* argv[])
     }
 
     // File checks before handing it off to the 2nd pass
+    // negate pathout checks since it can be used for other functions that don't require an output file
+    // allow the program to continue forward without a specified po
 
     if (gb::outputFile.empty())
     {
@@ -296,6 +311,25 @@ int main(int argc, char* argv[])
                 yay("Spectral analysis results written to output file successfully.");
             }
         }
+
+        if (strcmp(argv[j], "-cvrt") == 0 || strcmp(argv[j], "--convert") == 0)
+        {
+            // first check for po
+            if (gb::conversionOutputDirectory.empty()) {
+                err("When specifying -cvrt, you must input a valid output directory after a -po / --pathout flag");
+                return EXIT_FAILURE;
+            }
+            // Check other parts of the po now
+            if (!fs::exists(gb::conversionOutputDirectory) || !fs::is_directory(gb::conversionOutputDirectory)) {
+                err("When specifying an output directory after -po / --pathout flag, ensure the path\n is a exists and is a directory!");
+                return EXIT_FAILURE;
+            }
+
+            // Commit it.
+            // pre-deffed test
+            op::ConvertToFileType(gb::inputFile, gb::conversionOutputDirectory, op::AudioFormat::MP3, op::VBRQualities::V0);
+        }
+
     }
     
     return 0;

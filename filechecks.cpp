@@ -123,5 +123,6 @@ bool IsSpecficAudioFormat(const fs::path& path, op::AudioFormat format)
             warn("Unsupported audio format specified for checking.");
             return false;
     }
+}
 
-} // namespace FileChecks
+}// namespace FileChecks

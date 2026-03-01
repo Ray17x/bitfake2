@@ -1,35 +1,49 @@
 # Bitfake
-Bitfake, originally made to only detect fake .FLAC files through spectural analysis, is a multipurpose CLI tool dedicated to handling music much easier and effieicent. A common problem I had was any time i wanted to get a music's metadata, I had to make this large ffprobe command and the output gets messy. Converting music with ffmpeg was a hassle too, command was easy to memorize, but having to create a bash script for converting an entire directory of music felt ineffiecent and slow; hence, this project is dedicated to wrapping those complex ffmpeg/ffprobe commands into a simple and intuitive CLI tool that allows you, the user, to have a much easier time handling music. This project is far from complete, but still effective. 
+Bitfake was originally created to detect fake `.FLAC` files through spectral analysis. It has since grown into a multipurpose CLI tool for handling music more easily and efficiently.
+
+One common problem was that getting a track’s metadata required long `ffprobe` commands with messy output. Converting music with `ffmpeg` was also repetitive. The command itself is easy to remember, but writing scripts to convert entire directories felt inefficient and slow. This project wraps those complex `ffmpeg`/`ffprobe` workflows into a simple, intuitive CLI.
+
+This project is still far from complete, but it is already effective.
 
 ## Implemented Features
-* Getting Metadata
-* Getting ReplayGain Info (Useful for music players)
-* Spectural Analysis on 44.1kHz .FLACs (Higher quality can be misrepresented, be careful!!)
-* Lossy Diagonsis (Banding Score)
+* Get metadata
+* Get ReplayGain info (useful for music players)
+* Spectral analysis on 44.1 kHz `.FLAC` files (higher sample rates may be misrepresented, so be careful)
+* Lossy diagnosis (banding score)
 
-## Implemnted DEVELOPMENT Features
-These features are for contributing to the project, to make whoever contributes to this project life just a little bit easier:
-* Globals Header File to declare global variables easier
-* ConsoleOut Header File makes outputs organized
-* 2-Stage Metadata adding/overwriting
-* Seperation of Non User, Helper, and Core Functions to remain organized
-* Already implemnted file checking functions for specfic uses (Ensuring File is Audio by Extension OR by Magic Numbers, checking Specific file type)
+## Implemented Development Features
+These features are meant to make contributing to the project easier:
+* Global header file for simpler global variable declarations
+* `ConsoleOut` header file for organized output
+* Two-stage metadata add/overwrite flow
+* Separation of non-user, helper, and core functions for organization
+* File checking functions for specific use cases (audio extension checks, magic number checks, and specific format checks)
 
-## Yet to be implemented
-* Conversion of Files / Directories
-* Calculating ReplayGain by Track
-* Tagging directories
-* MusicBrainz Functionality
+## Yet to Be Implemented
+* File/directory conversion
+* ReplayGain calculation by track
+* Directory tagging
+* MusicBrainz functionality
 
-# Installation
-1. Install all dependcies
+## Dependencies
 
-Ubuntu/Debian-based distrobutions:
+Build-time dependencies:
+* A C++17-capable compiler and build tools (`g++`, `make`)
+* TagLib development headers and library
+* FFTW3 development headers and library
+
+Run-time dependencies:
+* `ffmpeg` and `ffprobe` available in your `PATH`
+
+## Installation
+1. Install all dependencies
+
+Ubuntu/Debian-based distributions:
 ```sh
 sudo apt update && sudo apt install -y build-essential libtag1-dev libfftw3-dev ffmpeg
 ```
 
-Fedora/Fedora-based distrobutions:
+Fedora/Fedora-based distributions:
 ```sh
 sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm && sudo dnf install -y gcc-c++ make taglib-devel fftw-devel ffmpeg
 ```
@@ -39,7 +53,7 @@ RHEL:
 sudo dnf install -y epel-release dnf-plugins-core && sudo dnf install -y https://download1.rpmfusion.org/free/el/rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm && sudo dnf config-manager --set-enabled crb && sudo dnf install -y gcc-c++ make taglib-devel fftw-devel ffmpeg
 ```
 
-Arch/Arch-Based distrobutions:
+Arch/Arch-based distributions:
 ```sh
 sudo pacman -Syu --needed base-devel taglib fftw ffmpeg
 ```
@@ -54,14 +68,14 @@ Alpine:
 sudo apk add --no-cache build-base taglib-dev fftw-dev ffmpeg
 ```
 
-Overall dependency List (for other distros):
+Overall dependency list (for other distros):
 ```
 build-base taglib-dev fftw-dev ffmpeg
 ```
 
-2. Pulling the project and compiling
+2. Clone the project and compile
 
-Via gitclone:
+Using `git clone`:
 
 ```sh
 git clone --depth 1 https://github.com/Ray17x/bitfake2.git
@@ -76,18 +90,58 @@ make
 ```
 (Help command to get you started!)
 
+## Usage Examples
+
+Print help:
+```sh
+./bitf -h
+```
+
+Get metadata (prints to terminal by default):
+```sh
+./bitf -i /path/to/song.flac -gmd
+```
+
+Get metadata and write to a text file (`-o` must be a `.txt` file):
+```sh
+./bitf -i /path/to/song.flac -gmd -o /tmp/metadata.txt
+```
+
+Get ReplayGain info:
+```sh
+./bitf -i /path/to/song.flac -grg
+```
+
+Run spectral analysis:
+```sh
+./bitf -i /path/to/song.flac -sa
+```
+
+Note: For some commands, `-i` can also be a directory path, and Bitfake will process supported audio files inside it.
+
 4. Cleaning up project
-You can clean the project up and prepare to compile with your via cleaning:
+You can clean the project and prepare for a fresh build with:
 
 ```sh
 make clean
 ```
 
-You are now ready to build the project again with additions/contributions you make.
+You are now ready to build the project again with any additions or contributions you make.
 
-This project isn't yet released on any distrobutions package manager as a raw binary, if you want to run the binary as a command, copy the binary to your `/usr/bin` directory like so (NOT RECOMMENDED!!)
+This project is not yet released in any distribution package manager as a raw binary. If you want to run the binary as a command, copy it to your `/usr/bin` directory like this (NOT RECOMMENDED):
 
 ```sh
 sudo cp ./bitf /usr/bin/
 ```
+
+## Troubleshooting
+
+`ffmpeg`/`ffprobe` not found:
+* Install `ffmpeg` and make sure `ffmpeg` and `ffprobe` are available in your `PATH`.
+
+Linker errors like `cannot find -ltag` or `cannot find -lfftw3`:
+* Install the TagLib/FFTW3 *development* packages for your distro (not just the runtime libs).
+
+Build fails due to missing headers:
+* Confirm you installed TagLib and FFTW3 dev packages and are using a C++17 compiler.
 

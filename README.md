@@ -10,6 +10,7 @@ This project is still far from complete, but it is already effective.
 * Get ReplayGain info (useful for music players)
 * Spectral analysis on 44.1 kHz `.FLAC` files (higher sample rates may be misrepresented, so be careful)
 * Lossy diagnosis (banding score)
+* File Conversion (Works going TO .mp3 or .ogg)
 
 ## Implemented Development Features
 These features are meant to make contributing to the project easier:
@@ -20,7 +21,7 @@ These features are meant to make contributing to the project easier:
 * File checking functions for specific use cases (audio extension checks, magic number checks, and specific format checks)
 
 ## Yet to Be Implemented
-* File/directory conversion
+* Directory conversion
 * ReplayGain calculation by track
 * Directory tagging
 * MusicBrainz functionality

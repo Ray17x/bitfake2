@@ -41,7 +41,7 @@ namespace Operations
     {
         {AudioFormat::MP3, "libmp3lame"},
         {AudioFormat::OGG, "libvorbis"},
-        {AudioFormat::FLAC, "libflac"},
+        {AudioFormat::FLAC, "flac"},
         {AudioFormat::AAC, "libfdk-aac"},
         {AudioFormat::OPUS, "libopus"},
         {AudioFormat::WAV, "pcm_s16le"},

@@ -535,7 +535,7 @@ namespace Operations
         return results;
     } // SpectralAnalysisList
 
-    static bool InputHasAttachedCover(const fs::path& inputPath)
+    bool InputHasAttachedCover(const fs::path& inputPath)
     {
         std::string probeCmd = "ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 \"" + inputPath.string() + "\"";
         FILE* pipe = popen(probeCmd.c_str(), "r");
@@ -553,12 +553,12 @@ namespace Operations
         return output.find("video") != std::string::npos;
     }
 
-    static bool FormatSupportsAttachedCover(AudioFormat format)
+    bool FormatSupportsAttachedCover(AudioFormat format)
     {
-        return format == AudioFormat::MP3;
+        return format == AudioFormat::MP3 || format == AudioFormat::FLAC;
     }
 
-    static bool HasFfmpegEncoder(const std::string& encoderName)
+    bool HasFfmpegEncoder(const std::string& encoderName)
     {
         std::string probeCmd = "ffmpeg -hide_banner -encoders 2>/dev/null";
         FILE* pipe = popen(probeCmd.c_str(), "r");
@@ -576,7 +576,7 @@ namespace Operations
         return output.find(" " + encoderName + " ") != std::string::npos;
     }
 
-    static std::string OutputExtensionForFormat(AudioFormat format)
+    std::string OutputExtensionForFormat(AudioFormat format)
     {
         switch (format)
         {

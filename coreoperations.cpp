@@ -9,6 +9,12 @@ namespace fc = FileChecks;
 namespace op = Operations;
 #include "Utilites/globals.hpp"
 namespace gb = globals;
+#include <taglib/fileref.h>
+#include <taglib/tpropertymap.h>
+#include <ebur128.h>
+#include <sndfile.h> 
+#include <vector>
+#include <algorithm>
 
 
 namespace Operations
@@ -101,5 +107,122 @@ namespace Operations
         yay("Conversion completed successfully!");
         plog("Output file:");
         yay(outputFile.c_str());
+    }
+    void ApplyReplayGain(const fs::path& path, ReplayGainByTrack trackGainInfo, ReplayGainByAlbum albumGainInfo)
+    {
+        bool trackInfoEmpty = (trackGainInfo.trackGain == 0.0f && trackGainInfo.trackPeak == 0.0f);
+        bool albumInfoEmpty = (albumGainInfo.albumGain == 0.0f && albumGainInfo.albumPeak == 0.0f);
+
+        TagLib::FileRef f(path.c_str());
+        TagLib::PropertyMap properties = f.file()->properties();
+        if (f.isNull() || !f.audioProperties()) {
+            err("Failed to read audio file for replaygain application.");
+            properties.clear();
+            return;
+        }
+
+
+        
+        if (trackInfoEmpty && albumInfoEmpty) {
+            warn("No replaygain info provided. Skipping replaygain application.");
+            return;
+        }
+        if (trackInfoEmpty) {
+            warn("No track replaygain info provided. Only applying album replaygain.");
+            StageMetaDataChanges(properties, "REPLAYGAIN_ALBUM_GAIN", std::to_string(albumGainInfo.albumGain) + " dB");
+            StageMetaDataChanges(properties, "REPLAYGAIN_ALBUM_PEAK", std::to_string(albumGainInfo.albumPeak));
+            CommitMetaDataChanges(path, properties);
+            return;
+        }
+        if (albumInfoEmpty) {
+            warn("No album replaygain info provided. Only applying track replaygain.");
+            StageMetaDataChanges(properties, "REPLAYGAIN_TRACK_GAIN", std::to_string(trackGainInfo.trackGain) + " dB");
+            StageMetaDataChanges(properties, "REPLAYGAIN_TRACK_PEAK", std::to_string(trackGainInfo.trackPeak));
+            CommitMetaDataChanges(path, properties);
+            return;
+        }
+
+        // Fall back to applying both if both are provided
+        StageMetaDataChanges(properties, "REPLAYGAIN_TRACK_GAIN", std::to_string(trackGainInfo.trackGain) + " dB");
+        StageMetaDataChanges(properties, "REPLAYGAIN_TRACK_PEAK", std::to_string(trackGainInfo.trackPeak));
+        StageMetaDataChanges(properties, "REPLAYGAIN_ALBUM_GAIN", std::to_string(albumGainInfo.albumGain) + " dB");
+        StageMetaDataChanges(properties, "REPLAYGAIN_ALBUM_PEAK ", std::to_string(albumGainInfo.albumPeak));
+        CommitMetaDataChanges(path, properties);
+    }
+    // Replaygain is calculated from EBU R128 integrated loudness,
+    // with a ReplayGain-style -18 dB reference target.
+    ReplayGainByTrack CalculateReplayGainTrack(const fs::path& path)
+    {
+        ReplayGainByTrack result{0.0f, 0.0f};
+
+        
+
+        TagLib::FileRef f(path.c_str());
+        if (f.isNull() || !f.audioProperties()) {
+            err("Failed to read audio file for replaygain calculation.");
+            return result;
+        }
+
+        constexpr double targetLufs = -18.0;
+
+        // Open audio file with libsndfile
+        SF_INFO sfinfo{};
+        SNDFILE* sndfile = sf_open(path.string().c_str(), SFM_READ, &sfinfo);
+        if (!sndfile) {
+            err("Failed to open audio file with libsndfile for replaygain calculation.");
+            return result;
+        }
+        
+        ebur128_state* st = ebur128_init(sfinfo.channels, sfinfo.samplerate, EBUR128_MODE_I | EBUR128_MODE_TRUE_PEAK);
+        if (!st) {
+            err("Failed to initialize ebur128 state for replaygain calculation.");
+            sf_close(sndfile);
+            return result;
+        }
+
+        const int BUFFERSIZE = 4096;
+        std::vector<float> buffer(BUFFERSIZE * sfinfo.channels);
+        sf_count_t readcount;
+        while ((readcount = sf_readf_float(sndfile, buffer.data(), BUFFERSIZE)) > 0) {
+            if (ebur128_add_frames_float(st, buffer.data(), readcount) != EBUR128_SUCCESS) {
+                err("Failed to feed PCM frames to ebur128.");
+                ebur128_destroy(&st);
+                sf_close(sndfile);
+                return result;
+            }
+        }
+
+        if (readcount < 0) {
+            err("Error while reading PCM frames from audio file.");
+            ebur128_destroy(&st);
+            sf_close(sndfile);
+            return result;
+        }
+
+        double integratedLufs = 0.0;
+        if (ebur128_loudness_global(st, &integratedLufs) != EBUR128_SUCCESS) {
+            err("Failed to compute integrated loudness with ebur128.");
+            ebur128_destroy(&st);
+            sf_close(sndfile);
+            return result;
+        }
+
+        double maxTruePeak = 0.0;
+        for (unsigned int ch = 0; ch < static_cast<unsigned int>(sfinfo.channels); ++ch) {
+            double channelPeak = 0.0;
+            if (ebur128_true_peak(st, ch, &channelPeak) == EBUR128_SUCCESS) {
+                maxTruePeak = std::max(maxTruePeak, channelPeak);
+            }
+        }
+
+        result.trackGain = static_cast<float>(targetLufs - integratedLufs);
+        result.trackPeak = static_cast<float>(maxTruePeak);
+
+        ebur128_destroy(&st);
+        sf_close(sndfile);
+        return result;
+
+
+
     }
 }

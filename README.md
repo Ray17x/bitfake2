@@ -11,6 +11,8 @@ This project is still far from complete, but it is already effective.
 * Spectral analysis on 44.1 kHz `.FLAC` files (higher sample rates may be misrepresented, so be careful)
 * Lossy diagnosis (banding score)
 * File Conversion (Works going TO .mp3 or .ogg)
+* Tagging metadata (Works for single files, but not directories yet)
+* Calculating Replaygain and applying it to files (Works for single files, but not directories yet)
 
 ## Implemented Development Features
 These features are meant to make contributing to the project easier:
@@ -22,8 +24,9 @@ These features are meant to make contributing to the project easier:
 
 ## Yet to Be Implemented
 * Directory conversion
-* ReplayGain calculation by track
 * Directory tagging
+* Replaygain for Album gain/peaks (currently only track gain/peaks is supported)
+* Replaygain for directories (both track and album gain)
 * MusicBrainz functionality
 
 ## Dependencies
@@ -32,6 +35,8 @@ Build-time dependencies:
 * A C++17-capable compiler and build tools (`g++`, `make`)
 * TagLib development headers and library
 * FFTW3 development headers and library
+* libebur128 development headers and library
+* libsndfile development headers and library
 
 Run-time dependencies:
 * `ffmpeg` and `ffprobe` available in your `PATH`
@@ -41,37 +46,37 @@ Run-time dependencies:
 
 Ubuntu/Debian-based distributions:
 ```sh
-sudo apt update && sudo apt install -y build-essential libtag1-dev libfftw3-dev ffmpeg
+sudo apt update && sudo apt install -y build-essential libtag1-dev libfftw3-dev libebur128-dev libsndfile1-dev ffmpeg
 ```
 
 Fedora/Fedora-based distributions:
 ```sh
-sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm && sudo dnf install -y gcc-c++ make taglib-devel fftw-devel ffmpeg
+sudo dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm && sudo dnf install -y gcc-c++ make taglib-devel fftw-devel ebur128-devel libsndfile-devel ffmpeg
 ```
 
 RHEL:
 ```sh
-sudo dnf install -y epel-release dnf-plugins-core && sudo dnf install -y https://download1.rpmfusion.org/free/el/rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm && sudo dnf config-manager --set-enabled crb && sudo dnf install -y gcc-c++ make taglib-devel fftw-devel ffmpeg
+sudo dnf install -y epel-release dnf-plugins-core && sudo dnf install -y https://download1.rpmfusion.org/free/el/rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm && sudo dnf config-manager --set-enabled crb && sudo dnf install -y gcc-c++ make taglib-devel fftw-devel ebur128-devel libsndfile-devel ffmpeg
 ```
 
 Arch/Arch-based distributions:
 ```sh
-sudo pacman -Syu --needed base-devel taglib fftw ffmpeg
+sudo pacman -Syu --needed base-devel taglib fftw libebur128 libsndfile ffmpeg
 ```
 
 Gentoo:
 ```sh
-sudo emerge --ask sys-devel/gcc sys-devel/make media-libs/taglib sci-libs/fftw media-video/ffmpeg
+sudo emerge --ask sys-devel/gcc sys-devel/make media-libs/taglib sci-libs/fftw media-libs/libebur128 media-libs/libsndfile media-video/ffmpeg
 ```
 
 Alpine:
 ```sh
-sudo apk add --no-cache build-base taglib-dev fftw-dev ffmpeg
+sudo apk add --no-cache build-base taglib-dev fftw-dev ebur128-dev libsndfile-dev ffmpeg
 ```
 
 Overall dependency list (for other distros):
 ```
-build-base taglib-dev fftw-dev ffmpeg
+build-base taglib-dev fftw-dev ebur128-dev libsndfile-dev ffmpeg
 ```
 
 2. Clone the project and compile
@@ -140,10 +145,10 @@ sudo cp ./bitf /usr/bin/
 `ffmpeg`/`ffprobe` not found:
 * Install `ffmpeg` and make sure `ffmpeg` and `ffprobe` are available in your `PATH`.
 
-Linker errors like `cannot find -ltag` or `cannot find -lfftw3`:
-* Install the TagLib/FFTW3 *development* packages for your distro (not just the runtime libs).
+Linker errors like `cannot find -ltag`, `cannot find -lfftw3`, `cannot find -lebur128`, or `cannot find -lsndfile`:
+* Install the TagLib/FFTW3/libebur128/libsndfile *development* packages for your distro (not just the runtime libs).
 
 Build fails due to missing headers:
-* Confirm you installed TagLib and FFTW3 dev packages and are using a C++17 compiler.
+* Confirm you installed TagLib, FFTW3, libebur128, and libsndfile dev packages and are using a C++17 compiler.
 
 1

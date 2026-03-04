@@ -1,6 +1,6 @@
 CXX := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -I./Utilites
-LDFLAGS := -ltag -lfftw3
+LDFLAGS := -ltag -lfftw3 -lebur128 -lsndfile
 BUILD_DIR := build
 
 SRC := main.cpp helperfunctions.cpp filechecks.cpp globals.cpp nonusrfunctions.cpp coreoperations.cpp

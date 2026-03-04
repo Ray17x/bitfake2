@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
                     printf("  -gmd, --getmetadata\t\t Get metadata of input file\n");
                     printf("  -grg, --getreplaygain\t\t Get ReplayGain information of input file\n");
                     printf("  -sa, --spectralanalysis\t Perform spectral analysis on input file\n");
+                    printf("  -atrg, --applytrackreplaygain\t Calculate track replaygain and apply it to the file (album gain will be left empty)\n");
                     printf("  -v, --version\t\t\t Show program version\n");
                     return EXIT_SUCCESS;
                 }
@@ -368,7 +369,15 @@ int main(int argc, char* argv[])
             op::StageMetaDataChanges(existingProps, gb::tag, gb::val);
             op::CommitMetaDataChanges(gb::inputFile, existingProps);
             yay("Tag applied successfully!");
-        } 
+        }
+
+        if (strcmp(argv[j], "-atrg") == 0 || strcmp(argv[j], "--applytrackreplaygain") == 0)
+        {
+            op::ReplayGainByTrack trackGainInfo = op::CalculateReplayGainTrack(gb::inputFile);
+            op::ReplayGainByAlbum albumGainInfo; // leave empty since we only want to apply track gain info
+            op::ApplyReplayGain(gb::inputFile, trackGainInfo, albumGainInfo);
+            yay("ReplayGain applied successfully!");
+        }
     
     }
 

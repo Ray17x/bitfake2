@@ -103,6 +103,18 @@ namespace Operations
         std::string diagnosis;      // Human readable summary
     };
 
+    struct ReplayGainByTrack
+    {
+        float trackGain;
+        float trackPeak;
+    };
+
+    struct ReplayGainByAlbum
+    {
+        float albumGain;
+        float albumPeak;
+    };
+
     // Function Declarations:
 
     // Non-user functions
@@ -129,10 +141,9 @@ namespace Operations
     // Core operations
     void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format, VBRQualities quality);
     void MassTagDirectory(const fs::path& dirPath, const std::string& tag, const std::string& value);
-    void ApplyReplayGain(const fs::path& path, float trackGain, float albumGain);
-    void CalculateReplayGain(const fs::path& path, bool AlbumGainsAndPeaks = false); 
-    
-
+    void ApplyReplayGain(const fs::path& path, ReplayGainByTrack trackGainInfo, ReplayGainByAlbum albumGainInfo);
+    ReplayGainByTrack CalculateReplayGainTrack(const fs::path& path); 
+    ReplayGainByAlbum CalculateReplayGainAlbum(const fs::path& path);
 }
 
 

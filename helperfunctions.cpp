@@ -15,9 +15,14 @@ namespace op = Operations;
 #include <taglib/tag.h>
 #include <taglib/tpropertymap.h>
 #include <taglib/xiphcomment.h>
+#include <taglib/mpegfile.h>
+#include <taglib/id3v2tag.h>
+#include <taglib/attachedpictureframe.h>
+#include <taglib/flacfile.h>
 #include <regex>
 #include <fftw3.h>
 #include <cctype>
+#include <sndfile.h>
 
 /*
     helperfunctions.cpp
@@ -62,7 +67,7 @@ namespace Operations
         tmpdata.trackNumber = tag->track();
         if (tag->year() > 0)
         {
-            tmpdata.year = std::to_string(tag->year());
+            tmpdata.date = std::to_string(tag->year());
         }
 
         // Try to extract additional metadata from Xiph comments (for Opus, Vorbis, FLAC)
@@ -87,13 +92,13 @@ namespace Operations
             {
                 tmpdata.genre = fields["GENRE"][0].to8Bit(true);
             }
-            if (fields.find("DATE") != fields.end() && !fields["DATE"].isEmpty() && tmpdata.year.empty())
+            if (fields.find("DATE") != fields.end() && !fields["DATE"].isEmpty() && tmpdata.date.empty())
             {
                 std::string dateStr = fields["DATE"][0].to8Bit(true);
                 // Extract year from DATE field (format: YYYY or YYYY-MM-DD)
                 if (dateStr.length() >= 4)
                 {
-                    tmpdata.year = dateStr.substr(0, 4);
+                    tmpdata.date = dateStr.substr(0, 4);
                 }
             }
             if (fields.find("TRACKNUMBER") != fields.end() && !fields["TRACKNUMBER"].isEmpty() && tmpdata.trackNumber == 0)
@@ -114,9 +119,9 @@ namespace Operations
     {
         std::vector<AudioMetadataResult> results;
 
-        if (!fs::exists(path))
+        if (!fs::exists(path) || !fc::IsValidAudioFile(path))
         {
-            warn("Metadata list failed: input path does not exist.");
+            warn("Metadata list failed: input path does not exist or is not a valid audio file.");
             return results;
         }
 
@@ -158,144 +163,58 @@ namespace Operations
 
     ReplayGainInfo GetReplayGain(const fs::path& path)
     {
-        ReplayGainInfo tmpdata = {"", "", "", 0, 0.0f, 0.0f, 0.0f, 0.0f};
+        // No calculations here; read ReplayGain tags directly with TagLib.
 
+        ReplayGainInfo result;
 
         if (!fs::exists(path) || !fs::is_regular_file(path))
         {
             warn("ReplayGain read failed: file does not exist or is not a regular file.");
-            return tmpdata;
+            return result;
         }
 
-        TagLib::FileRef fileRef(path.string().c_str());
-        if (fileRef.isNull() || fileRef.tag() == nullptr)
+        TagLib::FileRef f(path.string().c_str());
+        if (f.isNull() || f.tag() == nullptr)
         {
             warn("ReplayGain read failed: unsupported format or unreadable tags.");
-            return tmpdata;
+            return result;
         }
 
-        // Still reliable for getting basic stuff
+        TagLib::PropertyMap properties = f.file()->properties();
 
-        tmpdata.title = fileRef.tag()->title().to8Bit(true);
-        tmpdata.artist = fileRef.tag()->artist().to8Bit(true);
-        tmpdata.album = fileRef.tag()->album().to8Bit(true);
-        tmpdata.trackNumber = fileRef.tag()->track();
+        // getting title/artist/album for better logging context
+        result.title = f.tag()->title().to8Bit(true);
+        result.artist = f.tag()->artist().to8Bit(true);
+        result.album = f.tag()->album().to8Bit(true);
+        result.trackNumber = f.tag()->track();
 
-        std::string ffprbCmd =
-            "ffprobe -v error -select_streams a:0 "
-            "-show_entries "
-            "format_tags=REPLAYGAIN_TRACK_GAIN,REPLAYGAIN_TRACK_PEAK,REPLAYGAIN_ALBUM_GAIN,REPLAYGAIN_ALBUM_PEAK:"
-            "stream_tags=REPLAYGAIN_TRACK_GAIN,REPLAYGAIN_TRACK_PEAK,REPLAYGAIN_ALBUM_GAIN,REPLAYGAIN_ALBUM_PEAK"
-            "-of default=noprint_wrappers=1 \"" + path.string() + "\"";
-        FILE* pipe = popen(ffprbCmd.c_str(), "r");
-        if (!pipe)
+        if (properties.find("REPLAYGAIN_TRACK_GAIN") != properties.end() && properties.find("REPLAYGAIN_TRACK_PEAK") != properties.end())
         {
-            warn("ReplayGain read warning: failed to execute ffprobe for replay gain extraction.");
-            return tmpdata;
+            try {
+                std::string trackGainStr = properties["REPLAYGAIN_TRACK_GAIN"].toString().to8Bit(true);
+                std::string trackPeakStr = properties["REPLAYGAIN_TRACK_PEAK"].toString().to8Bit(true);
+                result.trackGain = std::stof(trackGainStr);
+                result.trackPeak = std::stof(trackPeakStr);
+            } catch (...) {
+                warn("ReplayGain read: failed to parse track gain/peak values.");
+            }
         }
 
-        auto trim = [](std::string& value)
+        // Album gain/peak are optional, so we won't log warnings if they're missing. Just try to read if they exist.
+        if (properties.find("REPLAYGAIN_ALBUM_GAIN") != properties.end() && properties.find("REPLAYGAIN_ALBUM_PEAK") != properties.end())
         {
-            const auto first = value.find_first_not_of(" \n\r\t");
-            if (first == std::string::npos)
-            {
-                value.clear();
-                return;
-            }
-            const auto last = value.find_last_not_of(" \n\r\t");
-            value = value.substr(first, last - first + 1);
-        };
-
-        auto parseReplayGainValue = [&trim](std::string value, float& output) -> bool
-        {
-            trim(value);
-            if (value.empty())
-            {
-                return false;
-            }
-
-            if (value.size() >= 2)
-            {
-                char c1 = static_cast<char>(std::tolower(static_cast<unsigned char>(value[value.size() - 2])));
-                char c2 = static_cast<char>(std::tolower(static_cast<unsigned char>(value[value.size() - 1])));
-                if (c1 == 'd' && c2 == 'b')
-                {
-                    value.erase(value.size() - 2);
-                    trim(value);
-                }
-            }
-
-            try
-            {
-                output = std::stof(value);
-                return true;
-            }
-            catch (...)
-            {
-                return false;
-            }
-        };
-
-        char buffer[128];
-
-        // bafoony bools.ty
-        bool foundTrackGain = false;
-        bool foundTrackPeak = false;
-        bool foundAlbumGain = false;
-        bool foundAlbumPeak = false;
-
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr)
-        {
-            std::string line(buffer);
-
-            trim(line);
-            if (line.empty())
-            {
-                continue;
-            }
-
-            const auto equalsPos = line.find('=');
-            if (equalsPos == std::string::npos || equalsPos == 0)
-            {
-                continue;
-            }
-
-            std::string key = line.substr(0, equalsPos);
-            std::string value = line.substr(equalsPos + 1);
-
-            if (key.rfind("TAG:", 0) == 0)
-            {
-                key = key.substr(4);
-            }
-
-            std::transform(key.begin(), key.end(), key.begin(),
-                [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
-
-            if (key == "REPLAYGAIN_TRACK_GAIN" && parseReplayGainValue(value, tmpdata.trackGain))
-            {
-                foundTrackGain = true;
-            }
-            else if (key == "REPLAYGAIN_TRACK_PEAK" && parseReplayGainValue(value, tmpdata.trackPeak))
-            {
-                foundTrackPeak = true;
-            }
-            else if (key == "REPLAYGAIN_ALBUM_GAIN" && parseReplayGainValue(value, tmpdata.albumGain))
-            {
-                foundAlbumGain = true;
-            }
-            else if (key == "REPLAYGAIN_ALBUM_PEAK" && parseReplayGainValue(value, tmpdata.albumPeak))
-            {
-                foundAlbumPeak = true;
+            try {
+                std::string albumGainStr = properties["REPLAYGAIN_ALBUM_GAIN"].toString().to8Bit(true);
+                std::string albumPeakStr = properties["REPLAYGAIN_ALBUM_PEAK"].toString().to8Bit(true);
+                result.albumGain = std::stof(albumGainStr);
+                result.albumPeak = std::stof(albumPeakStr);
+            } catch (...) {
+                warn("ReplayGain read: failed to parse album gain/peak values.");
             }
         }
-        pclose(pipe);
 
-        if (!(foundTrackGain || foundTrackPeak || foundAlbumGain || foundAlbumPeak))
-        {
-            warn("ReplayGain read warning: ffprobe did not return expected replay gain tags.");
-        }
+        return result;
 
-        return tmpdata;
     } // GetReplayGain
 
 
@@ -344,7 +263,7 @@ namespace Operations
         return results;
     } // GetReplayGainList
 
-     SpectralAnalysisResult SpectralAnalysis(const fs::path& path)
+    SpectralAnalysisResult SpectralAnalysis(const fs::path& path)
     {
         SpectralAnalysisResult tmpresult;
         std::vector<float> samples;
@@ -352,7 +271,7 @@ namespace Operations
         const int FFT_SIZE = 4096;
 
         float buffer[BUFFER_SIZE];
-        size_t bytesRead;
+        sf_count_t bytesRead;
 
         if (!fs::exists(path) || !fs::is_regular_file(path))
         {
@@ -361,30 +280,31 @@ namespace Operations
             return tmpresult;
         }
 
-        std::string ffmpegCmd = "ffmpeg -loglevel quiet -i \"" + path.string() + "\" -f f32le -acodec pcm_f32le pipe:1";
-        
-        FILE* pipe = popen(ffmpegCmd.c_str(), "r");
-        if (!pipe)
+        // libsndfile to do PCM stuff
+        SF_INFO sfinfo{};
+        SNDFILE* sndfile = sf_open(path.string().c_str(), SFM_READ, &sfinfo);
+        if (!sndfile)
         {
-            err("Spectral analysis failed: could not open ffmpeg pipe.");
-            tmpresult.diagnosis = "Error: Failed to execute ffmpeg.";
+            err("Spectral analysis failed: unable to open audio file for reading.");
+            tmpresult.diagnosis = "Error: Unable to read audio file.";
             return tmpresult;
         }
 
-        while ((bytesRead = fread(buffer, sizeof(float), BUFFER_SIZE, pipe)) > 0)
+        while ((bytesRead = sf_read_float(sndfile, buffer, BUFFER_SIZE)) > 0)
         {
             samples.insert(samples.end(), buffer, buffer + bytesRead);
         }
-        pclose(pipe);
+
+        sf_close(sndfile);
 
         if (samples.empty())
         {
-            err("Spectral analysis failed: ffmpeg produced no audio data.");
-            tmpresult.diagnosis = "Error: ffmpeg failed or file is invalid.";
+            err("Spectral analysis failed: decoder produced no audio samples.");
+            tmpresult.diagnosis = "Error: Could not decode audio samples.";
             return tmpresult;
         }
 
-        int numChunks = samples.size() / FFT_SIZE;
+        int numChunks = static_cast<int>(samples.size() / FFT_SIZE);
         if (numChunks == 0)
         {
             err("Spectral analysis failed: insufficient audio samples.");
@@ -428,7 +348,6 @@ namespace Operations
         TagLib::FileRef fileRef(path.string().c_str());
         float sampleRate = fileRef.audioProperties() ? fileRef.audioProperties()->sampleRate() : 44100.0f;
         int bitrate = fileRef.audioProperties() ? fileRef.audioProperties()->bitrate() : 0;  // Get bitrate metadata
-        float freqPerBin = sampleRate / FFT_SIZE;
 
         std::vector<float> bandEnergies(10, 0.0f);
         int bandSize = (FFT_SIZE / 2) / 10;
@@ -537,43 +456,37 @@ namespace Operations
 
     bool InputHasAttachedCover(const fs::path& inputPath)
     {
-        std::string probeCmd = "ffprobe -v error -select_streams v:0 -show_entries stream=codec_type -of csv=p=0 \"" + inputPath.string() + "\"";
-        FILE* pipe = popen(probeCmd.c_str(), "r");
-        if (!pipe) {
+        if (!fs::exists(inputPath) || !fs::is_regular_file(inputPath)) {
             return false;
         }
 
-        std::string output;
-        char buffer[256];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            output += buffer;
-        }
-        pclose(pipe);
+        const std::string ext = inputPath.extension().string();
 
-        return output.find("video") != std::string::npos;
+        if (ext == ".mp3")
+        {
+            TagLib::MPEG::File file(inputPath.string().c_str());
+            TagLib::ID3v2::Tag* tag = file.ID3v2Tag(false);
+            if (!tag)
+            {
+                return false;
+            }
+
+            const auto frames = tag->frameListMap()["APIC"];
+            return !frames.isEmpty();
+        }
+
+        if (ext == ".flac")
+        {
+            TagLib::FLAC::File file(inputPath.string().c_str());
+            return !file.pictureList().isEmpty();
+        }
+
+        return false;
     }
 
     bool FormatSupportsAttachedCover(AudioFormat format)
     {
         return format == AudioFormat::MP3 || format == AudioFormat::FLAC;
-    }
-
-    bool HasFfmpegEncoder(const std::string& encoderName)
-    {
-        std::string probeCmd = "ffmpeg -hide_banner -encoders 2>/dev/null";
-        FILE* pipe = popen(probeCmd.c_str(), "r");
-        if (!pipe) {
-            return false;
-        }
-
-        std::string output;
-        char buffer[512];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            output += buffer;
-        }
-        pclose(pipe);
-
-        return output.find(" " + encoderName + " ") != std::string::npos;
     }
 
     std::string OutputExtensionForFormat(AudioFormat format)

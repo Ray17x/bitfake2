@@ -56,55 +56,104 @@ namespace Operations
         // }
 
 
-        // Get qual val from enum class and that plugs into ffmpegCmd string
-        int qualval = static_cast<int>(quality);
-        std::string codec = op::ConversionLibMap.at(format);
-
-        if (format == AudioFormat::MP3 && !HasFfmpegEncoder("libmp3lame")) {
-            err("FFmpeg on this system does not have MP3 encoder libmp3lame enabled.");
-            warn("Install FFmpeg with libmp3lame support, or choose another output format (e.g. ogg/flac/opus). ");
-            return;
-        }
+        (void)quality;
 
         fs::path outputFile = outputPath;
         if (fs::is_directory(outputPath)) {
             outputFile = outputPath / (inputPath.stem().string() + OutputExtensionForFormat(format));
         }
 
-        bool hasInputCover = InputHasAttachedCover(inputPath);
-        bool carryCover = hasInputCover && FormatSupportsAttachedCover(format);
-
-        if (hasInputCover && !carryCover) {
-            warn("Input has cover art, but this output format may not support embedded album cover. Cover art will be skipped.");
+        int outputFormat = 0;
+        switch (format)
+        {
+            case AudioFormat::WAV:
+                outputFormat = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+                break;
+            case AudioFormat::FLAC:
+                outputFormat = SF_FORMAT_FLAC | SF_FORMAT_PCM_16;
+                break;
+            case AudioFormat::OGG:
+                outputFormat = SF_FORMAT_OGG | SF_FORMAT_VORBIS;
+                break;
+            default:
+                err("Library-only conversion currently supports WAV, FLAC, and OGG output.");
+                warn("For other formats, add a libavcodec-based transcoder path.");
+                return;
         }
 
-        std::string ffmpegCmd = "ffmpeg -y -i \"" + inputPath.string() + "\" -map 0:a:0 ";
-
-        if (carryCover) {
-            ffmpegCmd += "-map 0:v:0 -c:v copy -disposition:v:0 attached_pic ";
-        } else {
-            ffmpegCmd += "-vn ";
+        SF_INFO inInfo{};
+        SNDFILE* inFile = sf_open(inputPath.string().c_str(), SFM_READ, &inInfo);
+        if (!inFile)
+        {
+            err("Failed to open input audio file for conversion.");
+            return;
         }
 
-        ffmpegCmd += "-map_metadata 0 -metadata LENGTH= -metadata TLEN= -c:a " + codec;
+        SF_INFO outInfo{};
+        outInfo.samplerate = inInfo.samplerate;
+        outInfo.channels = inInfo.channels;
+        outInfo.format = outputFormat;
 
-        if (format == AudioFormat::FLAC) {
-            ffmpegCmd += " -compression_level " + std::to_string(qualval);
-        } else if (format == AudioFormat::WAV) {
-            // no quality switch for pcm_s16le
-        } else {
-            ffmpegCmd += " -q:a " + std::to_string(qualval);
+        if (!sf_format_check(&outInfo))
+        {
+            err("Output format is not supported by the current libsndfile build.");
+            sf_close(inFile);
+            return;
         }
 
-        ffmpegCmd += " \"" + outputFile.string() + "\"";
+        SNDFILE* outFile = sf_open(outputFile.string().c_str(), SFM_WRITE, &outInfo);
+        if (!outFile)
+        {
+            err("Failed to create output audio file for conversion.");
+            sf_close(inFile);
+            return;
+        }
 
-        // Build ffmpeg command
-        plog("Built ffmpeg command: ");
-        yay(ffmpegCmd.c_str());
+        constexpr sf_count_t frameBlockSize = 4096;
+        std::vector<float> pcmBuffer(static_cast<std::size_t>(frameBlockSize * inInfo.channels));
 
-        int ret = std::system(ffmpegCmd.c_str());
-        if (ret != 0) {
-            err("ffmpeg conversion failed.");
+        sf_count_t framesRead = 0;
+        while ((framesRead = sf_readf_float(inFile, pcmBuffer.data(), frameBlockSize)) > 0)
+        {
+            sf_count_t framesWritten = sf_writef_float(outFile, pcmBuffer.data(), framesRead);
+            if (framesWritten != framesRead)
+            {
+                err("Audio conversion write failed before all frames were written.");
+                sf_close(inFile);
+                sf_close(outFile);
+                return;
+            }
+        }
+
+        sf_close(inFile);
+        sf_close(outFile);
+
+        if (InputHasAttachedCover(inputPath) && !FormatSupportsAttachedCover(format))
+        {
+            warn("Input appears to have cover art, but the library-only converter currently writes audio stream only.");
+        }
+
+        if (InputHasAttachedCover(inputPath) && FormatSupportsAttachedCover(format))
+        {
+            warn("Cover art passthrough is not implemented in the library-only converter yet.");
+        }
+
+        TagLib::FileRef inTagRef(inputPath.string().c_str());
+        TagLib::FileRef outTagRef(outputFile.string().c_str());
+        if (!inTagRef.isNull() && inTagRef.tag() && !outTagRef.isNull() && outTagRef.tag())
+        {
+            outTagRef.tag()->setTitle(inTagRef.tag()->title());
+            outTagRef.tag()->setArtist(inTagRef.tag()->artist());
+            outTagRef.tag()->setAlbum(inTagRef.tag()->album());
+            outTagRef.tag()->setComment(inTagRef.tag()->comment());
+            outTagRef.tag()->setGenre(inTagRef.tag()->genre());
+            outTagRef.tag()->setYear(inTagRef.tag()->year());
+            outTagRef.tag()->setTrack(inTagRef.tag()->track());
+            outTagRef.file()->save();
+        }
+
+        if (format != AudioFormat::WAV && format != AudioFormat::FLAC && format != AudioFormat::OGG)
+        {
             return;
         }
 

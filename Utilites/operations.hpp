@@ -54,7 +54,7 @@ namespace Operations
         std::string artist;
         std::string album;
         std::string genre;
-        std::string year;
+        std::string date;
         int trackNumber = 0;
     };
 
@@ -132,7 +132,6 @@ namespace Operations
     std::vector<SpectralAnalysisResult> SpectralAnalysisList(const fs::path& path);
     bool InputHasAttachedCover(const fs::path& inputPath);
     bool FormatSupportsAttachedCover(AudioFormat format);
-    bool HasFfmpegEncoder(const std::string& encoderName);
     std::string OutputExtensionForFormat(AudioFormat format);
 
     // Implemented later because it requires network access and more complex logic!!

@@ -97,7 +97,8 @@ AVSampleFormat PickSampleFormat(const AVCodec *encoder) {
     return encoder->sample_fmts[0];
 }
 
-bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Operations::AudioFormat format) {
+bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Operations::AudioFormat format,
+                      int opusBitrateKbps) {
     AVFormatContext *inputFormat = nullptr;
     AVFormatContext *outputFormat = nullptr;
     AVCodecContext *decoderContext = nullptr;
@@ -226,7 +227,18 @@ bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Ope
         return false;
     }
     encoderContext->sample_fmt = PickSampleFormat(encoder);
-    encoderContext->bit_rate = 192000;
+    if (format == Operations::AudioFormat::OPUS) {
+        if (opusBitrateKbps > 0) {
+            encoderContext->bit_rate = opusBitrateKbps * 1000;
+        } else {
+            encoderContext->bit_rate = 0;
+        }
+        if (encoderContext->priv_data) {
+            av_opt_set(encoderContext->priv_data, "vbr", "on", 0);
+        }
+    } else {
+        encoderContext->bit_rate = 192000;
+    }
     encoderContext->time_base = AVRational{1, encoderContext->sample_rate};
 
     if (outputFormat->oformat->flags & AVFMT_GLOBALHEADER) {
@@ -587,6 +599,51 @@ namespace Operations {
 
 void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, AudioFormat format,
                        VBRQualities quality) {
+    if (!fs::exists(inputPath)) {
+        err("Input path does not exist.");
+        return;
+    }
+
+    if (fs::is_directory(inputPath)) {
+        if (!fs::exists(outputPath) || !fs::is_directory(outputPath)) {
+            err("Output path does not exist or is not a directory!");
+            return;
+        }
+
+        std::size_t convertedCount = 0;
+        std::size_t skippedCount = 0;
+
+        for (const auto &entry : fs::directory_iterator(inputPath)) {
+            if (!entry.is_regular_file()) {
+                continue;
+            }
+
+            if (!fc::IsValidAudioFile(entry.path())) {
+                ++skippedCount;
+                continue;
+            }
+
+            ConvertToFileType(entry.path(), outputPath, format, quality);
+            ++convertedCount;
+        }
+
+        if (convertedCount == 0) {
+            warn("No valid audio files found in input directory for conversion.");
+            return;
+        }
+
+        yay(("Directory conversion completed. Converted " + std::to_string(convertedCount) + " file(s).").c_str());
+        if (skippedCount > 0) {
+            warn(("Skipped " + std::to_string(skippedCount) + " non-audio file(s).").c_str());
+        }
+        return;
+    }
+
+    if (!fs::is_regular_file(inputPath)) {
+        err("Input path is not a regular file.");
+        return;
+    }
+
     if (!fc::IsSpecificAudioFormat(inputPath, op::AudioFormat::FLAC) &&
         !fc::IsSpecificAudioFormat(inputPath, op::AudioFormat::WAV)) {
         warn("Input file is not a lossless file. Conversion may result in quality loss. :(");
@@ -670,18 +727,18 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
         sf_close(inFile);
         sf_close(outFile);
     } else {
-        if (!ConvertWithLibAv(inputPath, outputFile, format)) {
+        if (!ConvertWithLibAv(inputPath, outputFile, format, gb::opusBitrateKbps)) {
             err("Library-based conversion failed for requested output format.");
             return;
         }
     }
 
-    if (InputHasAttachedCover(inputPath) && !FormatSupportsAttachedCover(format)) {
-        warn("Input appears to have cover art, but the library-only converter currently writes audio stream only.");
-    }
-
-    if (InputHasAttachedCover(inputPath) && FormatSupportsAttachedCover(format)) {
-        warn("Cover art passthrough is not implemented in the library-only converter yet.");
+    if (InputHasAttachedCover(inputPath)) {
+        if (!FormatSupportsAttachedCover(format)) {
+            warn("Input has cover art, but selected output format does not support attached cover art copy yet.");
+        } else if (!CopyAttachedCover(inputPath, outputFile, format)) {
+            warn("Input has cover art, but cover art copy to output failed.");
+        }
     }
 
     TagLib::FileRef inTagRef(inputPath.string().c_str());

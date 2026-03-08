@@ -137,6 +137,22 @@ You can clean the project and prepare for a fresh build with:
 make clean
 ```
 
+## Code Style
+
+This project uses `clang-format` with the repository config in `.clang-format` (same-line/K&R braces).
+
+Format all C++ source/header files:
+
+```sh
+make format
+```
+
+Check formatting without modifying files (useful for CI):
+
+```sh
+make check-format
+```
+
 You are now ready to build the project again with any additions or contributions you make.
 
 This project is not yet released in any distribution package manager as a raw binary. If you want to run the binary as a command, copy it to your `/usr/bin` directory like this (NOT RECOMMENDED):

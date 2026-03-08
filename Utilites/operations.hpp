@@ -143,6 +143,13 @@ struct ReplayGainByAlbum {
     float albumPeak;
 };
 
+struct AttachedCoverArt {
+    std::vector<unsigned char> imageData;
+    std::string mimeType;
+    std::string description;
+    int pictureType = 3;
+};
+
 // Function Declarations:
 
 // Non-user functions
@@ -159,6 +166,9 @@ std::vector<ReplayGainResult> GetReplayGainList(const fs::path &path);
 SpectralAnalysisResult SpectralAnalysis(const fs::path &path);
 std::vector<SpectralAnalysisResult> SpectralAnalysisList(const fs::path &path);
 bool InputHasAttachedCover(const fs::path &inputPath);
+bool GetAttachedCover(const fs::path &inputPath, AttachedCoverArt &coverArt);
+bool WriteAttachedCover(const fs::path &outputPath, AudioFormat outputFormat, const AttachedCoverArt &coverArt);
+bool CopyAttachedCover(const fs::path &inputPath, const fs::path &outputPath, AudioFormat outputFormat);
 bool FormatSupportsAttachedCover(AudioFormat format);
 std::string OutputExtensionForFormat(AudioFormat format);
 

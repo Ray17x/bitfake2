@@ -2,6 +2,8 @@
 #include "Utilites/filechecks.hpp"
 #include "Utilites/consoleout.hpp"
 using namespace ConsoleOut;
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <cstring>
 namespace fs = std::filesystem;
@@ -28,8 +30,16 @@ bool IsValidAudioFile(const fs::path &path) {
         return false;
     }
     const std::string extension = path.extension().string();
+    if (extension.size() <= 1 || extension[0] != '.') {
+        return false;
+    }
+
+    std::string normalizedExt = extension.substr(1);
+    std::transform(normalizedExt.begin(), normalizedExt.end(), normalizedExt.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
     for (const char *validExt : validAudioExtensions) {
-        if (extension.substr(1) == validExt) {
+        if (normalizedExt == validExt) {
             return true;
         }
     }

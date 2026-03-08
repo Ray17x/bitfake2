@@ -19,6 +19,8 @@ namespace op = Operations;
 #include <taglib/id3v2tag.h>
 #include <taglib/attachedpictureframe.h>
 #include <taglib/flacfile.h>
+#include <taglib/flacpicture.h>
+#include <taglib/opusfile.h>
 #include <regex>
 #include <fftw3.h>
 #include <cctype>
@@ -390,11 +392,18 @@ std::vector<SpectralAnalysisResult> SpectralAnalysisList(const fs::path &path) {
 } // SpectralAnalysisList
 
 bool InputHasAttachedCover(const fs::path &inputPath) {
+    AttachedCoverArt coverArt;
+    return GetAttachedCover(inputPath, coverArt);
+}
+
+bool GetAttachedCover(const fs::path &inputPath, AttachedCoverArt &coverArt) {
     if (!fs::exists(inputPath) || !fs::is_regular_file(inputPath)) {
         return false;
     }
 
-    const std::string ext = inputPath.extension().string();
+    std::string ext = inputPath.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     if (ext == ".mp3") {
         TagLib::MPEG::File file(inputPath.string().c_str());
@@ -404,19 +413,219 @@ bool InputHasAttachedCover(const fs::path &inputPath) {
         }
 
         const auto frames = tag->frameListMap()["APIC"];
-        return !frames.isEmpty();
+        if (frames.isEmpty()) {
+            return false;
+        }
+
+        TagLib::ID3v2::AttachedPictureFrame *selectedFrame = nullptr;
+        for (auto *frame : frames) {
+            auto *pictureFrame = dynamic_cast<TagLib::ID3v2::AttachedPictureFrame *>(frame);
+            if (!pictureFrame) {
+                continue;
+            }
+
+            if (!selectedFrame) {
+                selectedFrame = pictureFrame;
+            }
+
+            if (pictureFrame->type() == TagLib::ID3v2::AttachedPictureFrame::FrontCover) {
+                selectedFrame = pictureFrame;
+                break;
+            }
+        }
+
+        if (!selectedFrame) {
+            return false;
+        }
+
+        TagLib::ByteVector image = selectedFrame->picture();
+        if (image.isEmpty()) {
+            return false;
+        }
+
+        const auto *dataStart = reinterpret_cast<const unsigned char *>(image.data());
+        coverArt.imageData.assign(dataStart, dataStart + image.size());
+        coverArt.mimeType = selectedFrame->mimeType().to8Bit(true);
+        coverArt.description = selectedFrame->description().to8Bit(true);
+        coverArt.pictureType = static_cast<int>(selectedFrame->type());
+        if (coverArt.mimeType.empty()) {
+            coverArt.mimeType = "image/jpeg";
+        }
+        return true;
     }
 
     if (ext == ".flac") {
         TagLib::FLAC::File file(inputPath.string().c_str());
-        return !file.pictureList().isEmpty();
+        const auto pictures = file.pictureList();
+        if (pictures.isEmpty()) {
+            return false;
+        }
+
+        TagLib::FLAC::Picture *selectedPicture = nullptr;
+        for (auto *picture : pictures) {
+            if (!picture) {
+                continue;
+            }
+
+            if (!selectedPicture) {
+                selectedPicture = picture;
+            }
+
+            if (picture->type() == TagLib::FLAC::Picture::FrontCover) {
+                selectedPicture = picture;
+                break;
+            }
+        }
+
+        if (!selectedPicture) {
+            return false;
+        }
+
+        TagLib::ByteVector image = selectedPicture->data();
+        if (image.isEmpty()) {
+            return false;
+        }
+
+        const auto *dataStart = reinterpret_cast<const unsigned char *>(image.data());
+        coverArt.imageData.assign(dataStart, dataStart + image.size());
+        coverArt.mimeType = selectedPicture->mimeType().to8Bit(true);
+        coverArt.description = selectedPicture->description().to8Bit(true);
+        coverArt.pictureType = static_cast<int>(selectedPicture->type());
+        if (coverArt.mimeType.empty()) {
+            coverArt.mimeType = "image/jpeg";
+        }
+        return true;
+    }
+
+    if (ext == ".opus") {
+        TagLib::Ogg::Opus::File file(inputPath.string().c_str());
+        TagLib::Ogg::XiphComment *tag = file.tag();
+        if (!tag) {
+            return false;
+        }
+
+        const auto pictures = tag->pictureList();
+        if (pictures.isEmpty()) {
+            return false;
+        }
+
+        TagLib::FLAC::Picture *selectedPicture = nullptr;
+        for (auto *picture : pictures) {
+            if (!picture) {
+                continue;
+            }
+
+            if (!selectedPicture) {
+                selectedPicture = picture;
+            }
+
+            if (picture->type() == TagLib::FLAC::Picture::FrontCover) {
+                selectedPicture = picture;
+                break;
+            }
+        }
+
+        if (!selectedPicture) {
+            return false;
+        }
+
+        TagLib::ByteVector image = selectedPicture->data();
+        if (image.isEmpty()) {
+            return false;
+        }
+
+        const auto *dataStart = reinterpret_cast<const unsigned char *>(image.data());
+        coverArt.imageData.assign(dataStart, dataStart + image.size());
+        coverArt.mimeType = selectedPicture->mimeType().to8Bit(true);
+        coverArt.description = selectedPicture->description().to8Bit(true);
+        coverArt.pictureType = static_cast<int>(selectedPicture->type());
+        if (coverArt.mimeType.empty()) {
+            coverArt.mimeType = "image/jpeg";
+        }
+        return true;
     }
 
     return false;
 }
 
+bool WriteAttachedCover(const fs::path &outputPath, AudioFormat outputFormat, const AttachedCoverArt &coverArt) {
+    if (coverArt.imageData.empty()) {
+        return false;
+    }
+
+    TagLib::ByteVector imageData(reinterpret_cast<const char *>(coverArt.imageData.data()),
+                                 static_cast<unsigned int>(coverArt.imageData.size()));
+
+    if (outputFormat == AudioFormat::MP3) {
+        TagLib::MPEG::File file(outputPath.string().c_str());
+        TagLib::ID3v2::Tag *tag = file.ID3v2Tag(true);
+        if (!tag) {
+            return false;
+        }
+
+        const auto existingFrames = tag->frameList("APIC");
+        for (auto *frame : existingFrames) {
+            tag->removeFrame(frame, true);
+        }
+
+        auto *frame = new TagLib::ID3v2::AttachedPictureFrame;
+        frame->setMimeType(TagLib::String(coverArt.mimeType, TagLib::String::UTF8));
+        frame->setDescription(TagLib::String(coverArt.description, TagLib::String::UTF8));
+        frame->setType(static_cast<TagLib::ID3v2::AttachedPictureFrame::Type>(coverArt.pictureType));
+        frame->setPicture(imageData);
+        tag->addFrame(frame);
+        return file.save();
+    }
+
+    if (outputFormat == AudioFormat::FLAC) {
+        TagLib::FLAC::File file(outputPath.string().c_str());
+        file.removePictures();
+
+        auto *picture = new TagLib::FLAC::Picture;
+        picture->setMimeType(TagLib::String(coverArt.mimeType, TagLib::String::UTF8));
+        picture->setDescription(TagLib::String(coverArt.description, TagLib::String::UTF8));
+        picture->setType(static_cast<TagLib::FLAC::Picture::Type>(coverArt.pictureType));
+        picture->setData(imageData);
+        file.addPicture(picture);
+        return file.save();
+    }
+
+    if (outputFormat == AudioFormat::OPUS) {
+        TagLib::Ogg::Opus::File file(outputPath.string().c_str());
+        TagLib::Ogg::XiphComment *tag = file.tag();
+        if (!tag) {
+            return false;
+        }
+
+        tag->removeAllPictures();
+
+        auto *picture = new TagLib::FLAC::Picture;
+        picture->setMimeType(TagLib::String(coverArt.mimeType, TagLib::String::UTF8));
+        picture->setDescription(TagLib::String(coverArt.description, TagLib::String::UTF8));
+        picture->setType(static_cast<TagLib::FLAC::Picture::Type>(coverArt.pictureType));
+        picture->setData(imageData);
+        tag->addPicture(picture);
+        return file.save();
+    }
+
+    return false;
+}
+
+bool CopyAttachedCover(const fs::path &inputPath, const fs::path &outputPath, AudioFormat outputFormat) {
+    if (!FormatSupportsAttachedCover(outputFormat)) {
+        return false;
+    }
+
+    AttachedCoverArt coverArt;
+    if (!GetAttachedCover(inputPath, coverArt)) {
+        return false;
+    }
+
+    return WriteAttachedCover(outputPath, outputFormat, coverArt);
+}
+
 bool FormatSupportsAttachedCover(AudioFormat format) {
-    return format == AudioFormat::MP3 || format == AudioFormat::FLAC;
+    return format == AudioFormat::MP3 || format == AudioFormat::FLAC || format == AudioFormat::OPUS;
 }
 
 std::string OutputExtensionForFormat(AudioFormat format) {

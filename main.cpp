@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
                 printf("  -po, --pathout <directory>\t Output directory path for conversion functions\n");
                 printf("  -t, --tag <tag:val>\t\t Tag to apply to input file (e.g. -t title:NewTitle, -t "
                        "REPLAY_GAIN_TRACK_GAIN:-12.35)\n");
-                printf("  -f, --format <fmt[:q]>\t Conversion type (e.g. mp3:V0, flac:L8, wav)\n");
+                printf("  -f, --format <fmt[:q]>\t Conversion type (e.g. mp3:V0, flac:L8, opus:160, wav)\n");
                 printf("  -gmd, --getmetadata\t\t Get metadata of input file\n");
                 printf("  -grg, --getreplaygain\t\t Get ReplayGain information of input file\n");
                 printf("  -sa, --spectralanalysis\t Perform spectral analysis on input file\n");
@@ -90,16 +90,34 @@ int main(int argc, char *argv[]) {
                         std::string qualityStr = formatStr.substr(colonPos + 1);
                         formatStr = formatStr.substr(0, colonPos);
                         gb::outputFormat = op::StringToAudioFormat(formatStr);
-                        gb::VBRQuality = op::StringToVBRQuality(qualityStr);
+                        if (gb::outputFormat == op::AudioFormat::OPUS) {
+                            try {
+                                int bitrateKbps = std::stoi(qualityStr);
+                                if (bitrateKbps < 0 || bitrateKbps > 512) {
+                                    err("Opus bitrate must be between 0 and 512 kbps (inclusive).");
+                                    return EXIT_FAILURE;
+                                }
+                                gb::opusBitrateKbps = bitrateKbps;
+                            } catch (...) {
+                                err("Invalid Opus bitrate. Use an integer between 0 and 512 (e.g. opus:160).");
+                                return EXIT_FAILURE;
+                            }
+                        } else {
+                            gb::VBRQuality = op::StringToVBRQuality(qualityStr);
+                        }
                     } else {
                         gb::outputFormat = op::StringToAudioFormat(formatStr);
+                        if (gb::outputFormat == op::AudioFormat::OPUS) {
+                            gb::opusBitrateKbps = 192;
+                        }
                     }
                     // printf("format=%d quality=%d\n", static_cast<int>(gb::outputFormat),
                     // static_cast<int>(gb::VBRQuality));
                     i++; // Skip the next argument since it's the format
                 } else {
                     err("Format flag provided but no format specified!");
-                    warn("To use: -f/--format <format>:<quality> (e.g. -f mp3:V0, -f ogg:Q6, -f flac:L8)");
+                    warn("To use: -f/--format <format>[:<quality>] (e.g. -f mp3:V0, -f ogg:Q6, -f flac:L8, -f "
+                         "opus:160)");
                     return EXIT_FAILURE;
                 }
             }
@@ -157,7 +175,12 @@ int main(int argc, char *argv[]) {
     // if (fmt == 4 && (q < 15 || q > 23)) { /* FLAC: L0..L8 */ }
 
     /*
-        Invoking a check here to make sure the specified VBR quality is valid for the specified format. This is important because it will prevent us from passing invalid quality settings to the conversion functions later on, which could cause them to fail or produce unexpected results. By doing this check early on, we can provide immediate feedback to the user and prevent them from going through the entire conversion process only to find out that their quality setting was invalid. It's all about providing a better user experience and preventing frustration.
+        Invoking a check here to make sure the specified VBR quality is valid for the specified format. This is
+       important because it will prevent us from passing invalid quality settings to the conversion functions later on,
+       which could cause them to fail or produce unexpected results. By doing this check early on, we can provide
+       immediate feedback to the user and prevent them from going through the entire conversion process only to find out
+       that their quality setting was invalid. It's all about providing a better user experience and preventing
+       frustration.
     */
 
     if (fmt == 0 && (q < 0 || q > 9)) {

@@ -19,7 +19,15 @@ namespace gb = globals;
 namespace tl = TagLib;
 
 int main(int argc, char *argv[]) {
+
+    /*
+    Main function will be responsible for parsing command line arguments and invoking the appropriate functions in the
+    Operations namespace. The idea is to keep this function clean and simple, and delegate the heavy lifting to the
+    Operations namespace. This will also help with organization and maintainability as the project grows.
+    */
+
     if (argc < 2) {
+        // Checks if no arguments were provided and prints a helpful message instead of just doing nothing or crashing.
         err("No arguments provided! I can't do anything :(");
         plog("psst... use --help for more info!");
         return EXIT_FAILURE;
@@ -106,8 +114,6 @@ int main(int argc, char *argv[]) {
                         gb::tag = tagStr;
                         gb::val = taggedValue;
                         plog("Tag specified in flag: ");
-                        warn("Hey! This is a testing feature, you CAN technically use it, but I recommened use the "
-                             "Picard GUI as its much easier. :^)");
                         yay((gb::tag + ":" + gb::val).c_str());
                     } else {
                         err("Tag flag provided but no tag value specified :^(");
@@ -149,6 +155,10 @@ int main(int argc, char *argv[]) {
     // if (fmt == 0 && (q < 0 || q > 9)) { /* MP3: V0..V9 */ }
     // if (fmt == 1 && (q < 10 || q > 14)) { /* OGG: Q0..Q10 */ }
     // if (fmt == 4 && (q < 15 || q > 23)) { /* FLAC: L0..L8 */ }
+
+    /*
+        Invoking a check here to make sure the specified VBR quality is valid for the specified format. This is important because it will prevent us from passing invalid quality settings to the conversion functions later on, which could cause them to fail or produce unexpected results. By doing this check early on, we can provide immediate feedback to the user and prevent them from going through the entire conversion process only to find out that their quality setting was invalid. It's all about providing a better user experience and preventing frustration.
+    */
 
     if (fmt == 0 && (q < 0 || q > 9)) {
         err("MP3 format requires a VBR quality between V0 and V9 (inclusive)! (Do not use Qx or Lx for MP3! :( )");
@@ -195,7 +205,11 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // 2nd pass
+    /*
+        2nd Pass: Loop through arguments again and execute commands in Operations namespace. This separation allows us
+       to have all the file checks and preparations done beforehand, so we can just focus on executing the commands in
+       this pass without worrying about file validity or argument parsing.
+    */
 
     for (int j = 1; j < argc; j++) {
         if (strcmp(argv[j], "-gmd") == 0 || strcmp(argv[j], "--getmetadata") == 0) {

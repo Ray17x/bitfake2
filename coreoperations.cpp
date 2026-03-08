@@ -1,13 +1,13 @@
 #include <cstdio>
-#include "Utilites/consoleout.hpp"
+#include "Utilities/consoleout.hpp"
 using namespace ConsoleOut;
 #include <filesystem>
 namespace fs = std::filesystem;
-#include "Utilites/filechecks.hpp"
+#include "Utilities/filechecks.hpp"
 namespace fc = FileChecks;
-#include "Utilites/operations.hpp"
+#include "Utilities/operations.hpp"
 namespace op = Operations;
-#include "Utilites/globals.hpp"
+#include "Utilities/globals.hpp"
 namespace gb = globals;
 #include <taglib/fileref.h>
 #include <taglib/tpropertymap.h>

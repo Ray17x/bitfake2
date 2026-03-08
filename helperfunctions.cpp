@@ -1,16 +1,16 @@
 #include <cstdlib>
 #include <cmath>
 #include <cfloat>
-#include "Utilites/consoleout.hpp"
+#include "Utilities/consoleout.hpp"
 using namespace ConsoleOut;
 #include <filesystem>
 namespace fs = std::filesystem;
 #include <algorithm>
-#include "Utilites/filechecks.hpp"
+#include "Utilities/filechecks.hpp"
 namespace fc = FileChecks;
-#include "Utilites/operations.hpp"
+#include "Utilities/operations.hpp"
 namespace op = Operations;
-#include "Utilites/globals.hpp"
+#include "Utilities/globals.hpp"
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 #include <taglib/tpropertymap.h>

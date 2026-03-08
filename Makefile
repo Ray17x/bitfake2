@@ -1,10 +1,10 @@
 CXX := g++
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -I./Utilites
+CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -I./Utilities
 LDFLAGS := -ltag -lfftw3 -lebur128 -lsndfile -lavformat -lavcodec -lswresample -lavutil
 BUILD_DIR := build
 
 SRC := main.cpp helperfunctions.cpp filechecks.cpp globals.cpp nonusrfunctions.cpp coreoperations.cpp
-FORMAT_FILES := $(SRC) Utilites/*.hpp
+FORMAT_FILES := $(SRC) Utilities/*.hpp
 OBJ := $(addprefix $(BUILD_DIR)/,$(SRC:.cpp=.o))
 BIN := bitf
 

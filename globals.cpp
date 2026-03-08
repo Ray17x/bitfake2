@@ -1,4 +1,4 @@
-#include "Utilites/globals.hpp"
+#include "Utilities/globals.hpp"
 
 namespace globals {
 fs::path inputFile;

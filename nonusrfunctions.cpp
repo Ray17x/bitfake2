@@ -1,10 +1,10 @@
 #include <cstdlib>
 #include <unordered_map>
-#include "Utilites/operations.hpp"
+#include "Utilities/operations.hpp"
 namespace op = Operations;
-#include "Utilites/globals.hpp"
+#include "Utilities/globals.hpp"
 namespace gb = globals;
-#include "Utilites/consoleout.hpp"
+#include "Utilities/consoleout.hpp"
 #include <algorithm>
 using namespace ConsoleOut;
 #include <taglib/fileref.h>

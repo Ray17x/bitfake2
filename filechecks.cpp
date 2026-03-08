@@ -1,6 +1,6 @@
 #include <cstdlib>
-#include "Utilites/filechecks.hpp"
-#include "Utilites/consoleout.hpp"
+#include "Utilities/filechecks.hpp"
+#include "Utilities/consoleout.hpp"
 using namespace ConsoleOut;
 #include <algorithm>
 #include <cctype>

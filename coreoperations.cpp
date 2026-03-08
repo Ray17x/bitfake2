@@ -988,4 +988,135 @@ void CalculateReplayGainAlbum(const fs::path &path) {
     }
 }
 
+static std::string sanitize_dir_name(const std::string &name) {
+    std::string safe;
+    safe.reserve(name.size());
+    for (size_t i = 0; i < name.size(); i++) {
+        char c = name[i];
+        if (c == '/' || c == '\\' || c == '\0') {
+            safe.push_back('_');
+        } else {
+            safe.push_back(c);
+        }
+    }
+    while (!safe.empty() && (safe.back() == '.' || safe.back() == ' ')) {
+        safe.pop_back();
+    }
+    if (safe.empty()) {
+        safe = "Unsorted";
+    }
+    return safe;
+}
+
+void OrganizeIntoAlbums(const fs::path &inputDir, const fs::path &outputDir) {
+    if (!fs::exists(inputDir) || !fs::is_directory(inputDir)) {
+        err("Input path does not exist or is not a directory.");
+        return;
+    }
+
+    fs::path destRoot = outputDir.empty() ? inputDir : outputDir;
+    if (!fs::exists(destRoot) || !fs::is_directory(destRoot)) {
+        err("Output directory does not exist or is not a directory.");
+        return;
+    }
+
+    std::unordered_map<std::string, std::vector<fs::path>> albumMap;
+    std::size_t totalFiles = 0;
+
+    // group files by album tag 
+    for (fs::directory_iterator i(inputDir); i != fs::directory_iterator(); i++) {
+        fs::directory_entry entry = *i;
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        if (!fc::IsValidAudioFile(entry.path())) {
+            continue;
+        }
+
+        std::string album = "Unsorted";
+        TagLib::FileRef f(entry.path().string().c_str());
+        if (!f.isNull() && f.tag() && !f.tag()->album().isEmpty()) {
+            album = f.tag()->album().to8Bit(true);
+        }
+
+        albumMap[album].push_back(entry.path());
+        totalFiles++;
+    }
+
+    if (totalFiles == 0) {
+        warn("No valid audio files found in directory to organize.");
+        return;
+    }
+
+    plog(("Found " + std::to_string(totalFiles) + " audio file(s) across " + std::to_string(albumMap.size()) +
+          " album(s).")
+             .c_str());
+
+    // sanitize to prevent bad stuff
+    auto sanitizeDirName = sanitize_dir_name;
+
+    int movedCount = 0;
+    int failedCount = 0;
+    
+    // create album dirs and move files
+    for (auto i = albumMap.begin(); i != albumMap.end(); i++) {
+        const std::string &album = i->first;
+        const std::vector<fs::path> &paths = i->second;
+
+        std::string safeName = sanitizeDirName(album);
+        fs::path albumDir = destRoot / safeName;
+
+        std::error_code ec;
+        if (!fs::exists(albumDir)) {
+            fs::create_directories(albumDir, ec);
+            if (ec) {
+                err(("Failed to create album directory: " + albumDir.string() + " (" + ec.message() + ")").c_str());
+                failedCount += paths.size();
+                continue;
+            }
+            plog(("Created album directory: " + safeName).c_str());
+        }
+
+        // move files into album dir
+        for (size_t i = 0; i < paths.size(); ++i) {
+            const fs::path &filePath = paths[i];
+            fs::path dest = albumDir / filePath.filename();
+
+            if (fs::equivalent(filePath, dest, ec)) {
+                movedCount++;
+                continue;
+            }
+            if (fs::exists(dest)) {
+                warn(("Skipping (already exists in album dir): " + filePath.filename().string()).c_str());
+                failedCount++;
+                continue;
+            }
+
+            fs::rename(filePath, dest, ec);
+            if (ec) {
+                // fall back
+                fs::copy_file(filePath, dest, fs::copy_options::none, ec);
+                if (ec) {
+                    err(("Failed to move file: " + filePath.filename().string() + " (" + ec.message() + ")").c_str());
+                    ++failedCount;
+                    continue;
+                }
+                fs::remove(filePath, ec);
+                if (ec) {
+                    warn(("File copied but original could not be removed: " + filePath.filename().string()).c_str());
+                }
+            }
+
+            movedCount++;
+        }
+    }
+
+    yay(("Organized " + std::to_string(movedCount) + " file(s) into " + std::to_string(albumMap.size()) +
+         " album folder(s).")
+            .c_str());
+    if (failedCount > 0) {
+        warn(("Failed to move " + std::to_string(failedCount) + " file(s).").c_str());
+    }
+}
+
 } // namespace Operations

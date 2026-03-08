@@ -54,6 +54,7 @@ int main(int argc, char *argv[]) {
                        "(album gain will be left empty)\n");
                 printf("  -arg, --applyalbumreplaygain\t Calculate album replaygain and apply it to the file(s) (track "
                        "gain will be left empty)\n");
+                printf("  -oia, --organizeintoalbums\t Organize audio files in a directory into album subdirectories\n");
                 printf("  -v, --version\t\t\t Show program version\n");
                 return EXIT_SUCCESS;
             }
@@ -442,6 +443,14 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[j], "-aag") == 0 || strcmp(argv[j], "--applyalbumgain") == 0) {
             op::CalculateReplayGainAlbum(gb::inputFile);
             yay("Album ReplayGain applied successfully!");
+        }
+
+        if (strcmp(argv[j], "-oia") == 0 || strcmp(argv[j], "--organizeintoalbums") == 0) {
+            if (!fs::is_directory(gb::inputFile)) {
+                err("Organize into albums requires a directory as input! Use -i <directory>");
+                return EXIT_FAILURE;
+            }
+            op::OrganizeIntoAlbums(gb::inputFile, gb::conversionOutputDirectory);
         }
     }
 

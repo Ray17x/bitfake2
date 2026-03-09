@@ -1023,7 +1023,7 @@ void OrganizeIntoAlbums(const fs::path &inputDir, const fs::path &outputDir) {
     std::unordered_map<std::string, std::vector<fs::path>> albumMap;
     std::size_t totalFiles = 0;
 
-    // group files by album tag 
+    // group files by album tag
     for (fs::directory_iterator i(inputDir); i != fs::directory_iterator(); i++) {
         fs::directory_entry entry = *i;
         if (!entry.is_regular_file()) {
@@ -1057,7 +1057,7 @@ void OrganizeIntoAlbums(const fs::path &inputDir, const fs::path &outputDir) {
 
     int movedCount = 0;
     int failedCount = 0;
-    
+
     // create album dirs and move files
     for (auto i = albumMap.begin(); i != albumMap.end(); i++) {
         const std::string &album = i->first;
@@ -1114,6 +1114,114 @@ void OrganizeIntoAlbums(const fs::path &inputDir, const fs::path &outputDir) {
     yay(("Organized " + std::to_string(movedCount) + " file(s) into " + std::to_string(albumMap.size()) +
          " album folder(s).")
             .c_str());
+    if (failedCount > 0) {
+        warn(("Failed to move " + std::to_string(failedCount) + " file(s).").c_str());
+    }
+}
+
+void OrganizeIntoArtistAlbum(const fs::path &inputDir, const fs::path &outputDir) {
+    if (!fs::exists(inputDir) || !fs::is_directory(inputDir)) {
+        err("Input path does not exist or is not a directory.");
+        return;
+    }
+
+    fs::path destRoot = outputDir.empty() ? inputDir : outputDir;
+    if (!fs::exists(destRoot) || !fs::is_directory(destRoot)) {
+        err("Output directory does not exist or is not a directory.");
+        return;
+    }
+
+    struct TrackInfo {
+        fs::path path;
+        std::string artist;
+        std::string album;
+    };
+
+    std::vector<TrackInfo> tracks;
+
+    for (fs::directory_iterator i(inputDir); i != fs::directory_iterator(); i++) {
+        fs::directory_entry entry = *i;
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        if (!fc::IsValidAudioFile(entry.path())) {
+            continue;
+        }
+
+        std::string artist = "Unknown Artist";
+        std::string album = "Unknown Album";
+        TagLib::FileRef f(entry.path().string().c_str());
+        // if the file is valid and has tags, try to read artist and album, but fall back to defaults if not present
+        if (!f.isNull() && f.tag()) {
+            if (!f.tag()->artist().isEmpty()) {
+                artist = f.tag()->artist().to8Bit(true);
+            }
+            if (!f.tag()->album().isEmpty()) {
+                album = f.tag()->album().to8Bit(true);
+            }
+        }
+
+        tracks.push_back({entry.path(), artist, album});
+    }
+
+    if (tracks.empty()) {
+        warn("No valid audio files found in directory to organize.");
+        return;
+    }
+
+    plog(("Found " + std::to_string(tracks.size()) + " audio file(s).").c_str());
+
+    int movedCount = 0;
+    int failedCount = 0;
+
+    // move files into artist/album dir
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        const TrackInfo &track = tracks[i];
+        std::string safeArtist = sanitize_dir_name(track.artist);
+        std::string safeAlbum = sanitize_dir_name(track.album);
+        fs::path targetDir = destRoot / safeArtist / safeAlbum;
+
+        std::error_code ec;
+        if (!fs::exists(targetDir)) {
+            fs::create_directories(targetDir, ec);
+            if (ec) {
+                err(("Failed to create directory: " + targetDir.string() + " (" + ec.message() + ")").c_str());
+                failedCount++;
+                continue;
+            }
+            plog(("Created directory: " + safeArtist + "/" + safeAlbum).c_str());
+        }
+
+        fs::path dest = targetDir / track.path.filename();
+
+        if (fs::equivalent(track.path, dest, ec)) {
+            movedCount++;
+            continue;
+        }
+        if (fs::exists(dest)) {
+            warn(("Skipping (already exists): " + track.path.filename().string()).c_str());
+            failedCount++;
+            continue;
+        }
+
+        fs::rename(track.path, dest, ec);
+        if (ec) {
+            fs::copy_file(track.path, dest, fs::copy_options::none, ec);
+            if (ec) {
+                err(("Failed to move file: " + track.path.filename().string() + " (" + ec.message() + ")").c_str());
+                failedCount++;
+                continue;
+            }
+            fs::remove(track.path, ec);
+            if (ec) {
+                warn(("File copied but original could not be removed: " + track.path.filename().string()).c_str());
+            }
+        }
+
+        movedCount++;
+    }
+
+    yay(("Organized " + std::to_string(movedCount) + " file(s) into artist/album folders.").c_str());
     if (failedCount > 0) {
         warn(("Failed to move " + std::to_string(failedCount) + " file(s).").c_str());
     }

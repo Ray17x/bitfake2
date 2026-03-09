@@ -1148,8 +1148,8 @@ void OrganizeIntoArtistAlbum(const fs::path &inputDir, const fs::path &outputDir
             continue;
         }
 
-        std::string artist = "Unknown Artist";
-        std::string album = "Unknown Album";
+        std::string artist = "Unsorted";
+        std::string album = "Unsorted";
         TagLib::FileRef f(entry.path().string().c_str());
         // if the file is valid and has tags, try to read artist and album, but fall back to defaults if not present
         if (!f.isNull() && f.tag()) {

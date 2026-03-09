@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
                 printf("  -arg, --applyalbumreplaygain\t Calculate album replaygain and apply it to the file(s) (track "
                        "gain will be left empty)\n");
                 printf("  -oia, --organizeintoalbums\t Organize audio files in a directory into album subdirectories\n");
-                printf("  -oiaa, --organizeartistalbum\t Organize audio files into artist/album subdirectories\n");
+                printf("  -oiaa, --organizeintoartistalbum\t Organize audio files into artist/album subdirectories\n");
                 printf("  -v, --version\t\t\t Show program version\n");
                 return EXIT_SUCCESS;
             }
@@ -454,7 +454,7 @@ int main(int argc, char *argv[]) {
             op::OrganizeIntoAlbums(gb::inputFile, gb::conversionOutputDirectory);
         }
 
-        if (strcmp(argv[j], "-oiaa") == 0 || strcmp(argv[j], "--organizeartistalbum") == 0) {
+        if (strcmp(argv[j], "-oiaa") == 0 || strcmp(argv[j], "--organizeintoartistalbum") == 0) {
             if (!fs::is_directory(gb::inputFile)) {
                 err("Organize into artist/album requires a directory as input! Use -i <directory>");
                 return EXIT_FAILURE;

@@ -26,10 +26,13 @@ $(BUILD_DIR):
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# This is the vital part for GURU/Portage!
-install: all
-	install -d $(DESTDIR)$(PREFIX)/bin
-	install -m 0755 $(BIN) $(DESTDIR)$(PREFIX)/bin/
+PREFIX ?= /usr/local
+BINDIR = $(DESTDIR)$(PREFIX)/bin
 
-clean:
-	rm -rf $(BUILD_DIR) $(BIN)
+install: bitf
+	mkdir -p $(BINDIR)
+	cp bitf $(BINDIR)/bitf
+	chmod 755 $(BINDIR)/bitf
+
+uninstall:
+	rm -f $(BINDIR)/bitf 

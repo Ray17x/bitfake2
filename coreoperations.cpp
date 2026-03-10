@@ -20,6 +20,15 @@ namespace gb = globals;
 #include <thread>
 #include <atomic>
 #include <string>
+#include <musicbrainz5/Query.h>
+#include <musicbrainz5/Metadata.h>
+#include <musicbrainz5/Artist.h>
+#include <musicbrainz5/Release.h>
+#include <musicbrainz5/Track.h>
+#include <musicbrainz5/Recording.h>
+#include <musicbrainz5/ReleaseGroup.h>
+#include <musicbrainz5/NameCredit.h>
+#include <musicbrainz5/ArtistCredit.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -579,6 +588,63 @@ bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Ope
     cleanup();
     return true;
 }
+
+
+
+struct MBAudioInfo {
+    std::string MUSICBRAINZ_ALBUMARTISTID;
+    std::string MUSICBRAINZ_ALBUMID;
+    std::string MUSICBRAINZ_ALBUMSTATUS;
+    std::string MUSICBRAINZ_ARTISTID;
+    std::string MUSICBRAINZ_RELEASEGROUPID;
+    std::string MUSICBRAINZ_RELEASETRACKID;
+    std::string MUSICBRAINZ_TRACKID;
+    std::string MUSICBRAINZ_WORKID;
+};
+
+// duh- dah -duh -dah dah- disappointed in this fuck ass API
+// (Disappointed - Death Grips)
+MBAudioInfo GetMBIDFromDB(const fs::path &inputPath) {
+
+    MBAudioInfo info;
+    if (!fs::exists(inputPath) || !fs::is_regular_file(inputPath) || !fc::IsValidAudioFile(inputPath)) {
+        err("Input path does not exist or is not a regular file.");
+        return info;
+    }
+    op::AudioMetadata InputMetadata = op::GetMetaData(inputPath);
+    MusicBrainz5::CQuery query(("Bitfake looking for MBIDs, ver" + gb::version + " contact: ray@atl.tools").c_str());
+    
+    try
+    {
+        MusicBrainz5::CQuery::tParamMap searchParams;
+        searchParams["recording"] = InputMetadata.title;
+        searchParams["artist"] = InputMetadata.artist;
+        searchParams["album"] = InputMetadata.album;
+
+        MusicBrainz5::CMetadata searchResults = query.Query("recording", "", "", searchParams);
+        if (searchResults.RecordingList()->NumItems() == 0) {
+            err("No MusicBrainz recording found matching input metadata.");
+            return info;
+        }
+
+        for (int count = 0; count < searchResults.RecordingList()->NumItems(); ++count) {
+            MusicBrainz5::CRecording *recording = searchResults.RecordingList()->Item(count);
+            if (recording && recording->ArtistCredit()) {
+                info.MUSICBRAINZ_ARTISTID = recording->ID();
+            }
+
+            if (recording && recording->GetElementName() == "track") {
+                info.MUSICBRAINZ_TRACKID = recording->ID();
+            }
+        }
+    }
+    catch(const std::exception& e)
+    {
+        err(("MusicBrainz query failed: " + std::string(e.what())).c_str());
+    }
+    
+    return info;
+}
 } // namespace
 
 namespace Operations {
@@ -590,12 +656,6 @@ namespace Operations {
    things as clean and organized as possible, but no promises >:D
 */
 
-// void ConvertToFileType(const fs::path& inputPath, const fs::path& outputPath, AudioFormat format);
-// void MassTagDirectory(const fs::path& dirPath, const std::string& tag, const std::string& value);
-// void ApplyReplayGain(const fs::path& path, float trackGain, float albumGain);
-// void CalculateReplayGain(const fs::path& path);
-
-// We can now begin implementing these fuckass features:
 
 void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, AudioFormat format,
                        VBRQualities quality) {

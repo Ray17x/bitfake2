@@ -1,20 +1,24 @@
-CXX := g++
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -I./Utilities
-LDFLAGS := -ltag -lfftw3 -lebur128 -lsndfile -lavformat -lavcodec -lswresample -lavutil
+# Use ?= so Portage can provide its own values
+CXX      ?= g++
+# Use += so we add your requirements to the user's preferred CXXFLAGS
+CXXFLAGS += -std=c++17 -Wall -Wextra -I./Utilities
+LDFLAGS  += -ltag -lfftw3 -lebur128 -lsndfile -lavformat -lavcodec -lswresample -lavutil
+
 BUILD_DIR := build
+# DESTDIR is the 'fake' root used by Portage
+DESTDIR   ?= 
+PREFIX    ?= /usr/local
 
 SRC := main.cpp helperfunctions.cpp filechecks.cpp globals.cpp nonusrfunctions.cpp coreoperations.cpp
-FORMAT_FILES := $(SRC) Utilities/*.hpp
 OBJ := $(addprefix $(BUILD_DIR)/,$(SRC:.cpp=.o))
 BIN := bitf
 
-.PHONY: all clean format check-format
+.PHONY: all clean format check-format install
 
 all: $(BIN)
 
 $(BIN): $(OBJ)
-	$(CXX) $(OBJ) -o $@ $(LDFLAGS)
-
+	$(CXX) $(CXXFLAGS) $(OBJ) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -22,11 +26,13 @@ $(BUILD_DIR):
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-clean:
-	rm -f $(OBJ) $(BIN) $(BUILD_DIR)/bitf
+PREFIX ?= /usr/local
+BINDIR = $(DESTDIR)$(PREFIX)/bin
 
-format:
-	clang-format -i $(FORMAT_FILES)
+install: bitf
+	mkdir -p $(BINDIR)
+	cp bitf $(BINDIR)/bitf
+	chmod 755 $(BINDIR)/bitf
 
-check-format:
-	clang-format --dry-run -Werror $(FORMAT_FILES)
+uninstall:
+	rm -f $(BINDIR)/bitf 

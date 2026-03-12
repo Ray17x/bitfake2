@@ -604,47 +604,8 @@ struct MBAudioInfo {
 
 // duh- dah -duh -dah dah- disappointed in this fuck ass API
 // (Disappointed - Death Grips)
-MBAudioInfo GetMBIDFromDB(const fs::path &inputPath) {
-
-    MBAudioInfo info;
-    if (!fs::exists(inputPath) || !fs::is_regular_file(inputPath) || !fc::IsValidAudioFile(inputPath)) {
-        err("Input path does not exist or is not a regular file.");
-        return info;
-    }
-    op::AudioMetadata InputMetadata = op::GetMetaData(inputPath);
-    MusicBrainz5::CQuery query(("Bitfake looking for MBIDs, ver" + gb::version + " contact: ray@atl.tools").c_str());
-    
-    try
-    {
-        MusicBrainz5::CQuery::tParamMap searchParams;
-        searchParams["recording"] = InputMetadata.title;
-        searchParams["artist"] = InputMetadata.artist;
-        searchParams["album"] = InputMetadata.album;
-
-        MusicBrainz5::CMetadata searchResults = query.Query("recording", "", "", searchParams);
-        if (searchResults.RecordingList()->NumItems() == 0) {
-            err("No MusicBrainz recording found matching input metadata.");
-            return info;
-        }
-
-        for (int count = 0; count < searchResults.RecordingList()->NumItems(); ++count) {
-            MusicBrainz5::CRecording *recording = searchResults.RecordingList()->Item(count);
-            if (recording && recording->ArtistCredit()) {
-                info.MUSICBRAINZ_ARTISTID = recording->ID();
-            }
-
-            if (recording && recording->GetElementName() == "track") {
-                info.MUSICBRAINZ_TRACKID = recording->ID();
-            }
-        }
-    }
-    catch(const std::exception& e)
-    {
-        err(("MusicBrainz query failed: " + std::string(e.what())).c_str());
-    }
-    
-    return info;
-}
+// MBAudioInfo GetMBIDFromDB(const fs::path &inputPath);
+// This function has not been implemented because the API is hard to understand and there is lack of documentation.
 } // namespace
 
 namespace Operations {

@@ -1,6 +1,4 @@
-# Use ?= so Portage can provide its own values
 CXX      ?= g++
-# Use += so we add your requirements to the user's preferred CXXFLAGS
 CXXFLAGS += -std=c++17 -Wall -Wextra -I./Utilities
 LDFLAGS  += -ltag -lfftw3 -lebur128 -lsndfile -lavformat -lavcodec -lswresample -lavutil
 

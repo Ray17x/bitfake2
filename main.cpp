@@ -373,11 +373,19 @@ int main(int argc, char *argv[]) {
         }
 
         if (strcmp(argv[j], "-t") == 0 || strcmp(argv[j], "--tag") == 0) {
+
+            if (fs::is_directory(gb::inputFile)) {
+                op::MassTagDirectory(gb::inputFile, gb::tag, gb::val);
+                yay("Done! :D");
+                return EXIT_SUCCESS;
+            }
+
             tl::FileRef f(gb::inputFile.c_str());
             if (f.isNull() || !f.tag()) {
                 err("Failed to open file for metadata commit");
                 return false;
             }
+
             tl::PropertyMap existingProps = f.file()->properties();
             op::StageMetaDataChanges(existingProps, gb::tag, gb::val);
             op::CommitMetaDataChanges(gb::inputFile, existingProps);

@@ -1248,4 +1248,57 @@ void OrganizeIntoArtistAlbum(const fs::path &inputDir, const fs::path &outputDir
     }
 }
 
+void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std::string &value) {
+    // fuck
+
+    if (!fs::exists(dirPath) || !fs::is_directory(dirPath)) {
+        err("Input path does not exist or is not a directory.");
+        return;
+    }
+
+    if (tag.empty()) {
+        err("Tag name cannot be empty.");
+        return;
+    }
+
+    // ignore checking if a value is provided js incase user wants empty val
+    // haii from the guru! :D
+
+    fs::recursive_directory_iterator dirIter(dirPath);
+    std::size_t taggedCount = 0;
+    std::size_t failedCount = 0;
+    for (const auto &entry: dirIter) {
+        if (!entry.is_regular_file() || !fc::IsValidAudioFile(entry.path())) {
+            ++failedCount;
+            continue;
+        }
+
+        TagLib::FileRef f(entry.path().string().c_str());
+        if (f.isNull() || !f.tag() || !f.file()) {
+            ++failedCount;
+            continue;
+        }
+
+        TagLib::PropertyMap properties = f.file()->properties();
+        StageMetaDataChanges(properties, tag, value);
+        if (CommitMetaDataChanges(entry.path(), properties)) {
+            ++taggedCount;
+        } else {
+            ++failedCount;
+        }
+    }
+
+
+    if (taggedCount > 0) {
+        yay(("Successfully updated tag for " + std::to_string(taggedCount) + " file(s).").c_str());
+        if (failedCount > 0) {
+            warn(("Failed to update tag for " + std::to_string(failedCount) + " file(s). (Don't Panic! It could just be the album cover!)").c_str());
+        }
+        return;
+    } else {
+        err("Failed to update tag for any files in the directory. Are you sure the directory has music? :(");
+        return;
+    }
+}
+
 } // namespace Operations

@@ -77,6 +77,11 @@ Gentoo USE flag note (for encoder support):
 ```sh
 echo "media-video/ffmpeg encode mp3 opus vorbis" | sudo tee -a /etc/portage/package.use/bitfake
 ```
+WAITTTTT!! Do you have the GURU enabled? You can download it straight from there instead!! :D
+```sh
+sudo emaint sync -a # Sync all repos just to be safe!
+sudo emerge --ask app-misc/bitfake2
+``` 
 
 Alpine:
 ```sh

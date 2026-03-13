@@ -17,6 +17,7 @@ One common problem was that getting a track’s metadata required long `ffprobe`
 * Directory Conversion (works for all previously mentioned formats!)
 * CoverArt+ (Brings along cover art among all conversions!)
 * Organzing Files by album! (Give a dir of random music, and bitfake will organize it - ty to uncognic)
+* Directory Tagging (YAY!)
 * Version info (WOW! BEST YET!)
 
 ## Implemented Development Features
@@ -28,7 +29,6 @@ These features are meant to make contributing to the project easier:
 * File checking functions for specific use cases (audio extension checks, magic number checks, and specific format checks)
 
 ## Yet to Be Implemented
-* Directory tagging
 * MusicBrainz functionality
 * Bandcamp functionality/features
 

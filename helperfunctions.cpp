@@ -248,8 +248,35 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
         return tmpresult;
     }
 
-    while ((bytesRead = sf_read_float(sndfile, buffer, BUFFER_SIZE)) > 0) {
-        samples.insert(samples.end(), buffer, buffer + bytesRead);
+    /*
+        WARNING WARNING WARNING!!! This loads the ENTIRE song into memory!
+        This could case a OOM err! If you understand the risk and want to implement a method that
+        does require the ENTIRE audio file being in memory, be your? guest i guess? i dont know.
+        But if you load a 2 hour lossless podcast, that could cause big problems.
+        the better implementation only takes the necessary chunks (500 give or take) for the spectral analysis,
+        if for whatever reason, you need the entire thing in memory, uncomment this and implement a feature around it :^)
+    */
+
+    // while ((bytesRead = sf_read_float(sndfile, buffer, BUFFER_SIZE)) > 0) {
+    //     samples.insert(samples.end(), buffer, buffer + bytesRead);
+    // }
+
+    // This provided solution below fixes that. It reads the file in chunks and only keeps the necessary samples for the spectral analysis in memory, which is much safer for large files.
+    // Also were mono-ifying the audio (LMAO) by averaging the channels tg
+    const int MAX_CHUNKS = 500;
+    const int SAMPLES_NEEDED = FFT_SIZE * MAX_CHUNKS;
+    while (samples.size() < SAMPLES_NEEDED && 
+          (bytesRead = sf_readf_float(sndfile, buffer, BUFFER_SIZE / sfinfo.channels)) > 0) {
+        
+        for (int i = 0; i < bytesRead; i++) {
+            float mono_sum = 0.0f;
+            // ...Add up the left channel + the right channel... huminah..
+            for (int c = 0; c < sfinfo.channels; c++) {
+                mono_sum += buffer[i * sfinfo.channels + c];
+            }
+            // ...And divide by the number of channels (usually 2). This creates a clean mono signal!
+            samples.push_back(mono_sum / sfinfo.channels);
+        }
     }
 
     sf_close(sndfile);
@@ -278,7 +305,8 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
     int actualChunks = 0;
     for (int chunk = 0; chunk < numChunks && chunk < 500; chunk++) {
         for (int i = 0; i < FFT_SIZE; i++) {
-            in[i][0] = samples[chunk * FFT_SIZE + i];
+            float window = 0.5f * (1.0f - cos(2.0f * M_PI * i / (FFT_SIZE - 1)));
+            in[i][0] = samples[chunk * FFT_SIZE + i] * window;
             in[i][1] = 0.0;
         }
 
@@ -298,17 +326,33 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
     }
 
     TagLib::FileRef fileRef(path.string().c_str());
-    float sampleRate = fileRef.audioProperties() ? fileRef.audioProperties()->sampleRate() : 44100.0f;
+    float sampleRate = sfinfo.samplerate > 0 ? static_cast<float>(sfinfo.samplerate) : 44100.0f; // Assume Audio is a 44.1kHz sample rate if we can't read it for both the user's benefit and to avoid divide-by-zero errs.
     int bitrate = fileRef.audioProperties() ? fileRef.audioProperties()->bitrate() : 0; // Get bitrate metadata
 
     std::vector<float> bandEnergies(10, 0.0f);
-    int bandSize = (FFT_SIZE / 2) / 10;
-
+    
+    // Instead of linear spacing, we exponentially increase the bin range
+    int currentBin = 1;
+    
     for (int b = 0; b < 10; b++) {
-        for (int i = b * bandSize; i < (b + 1) * bandSize && i < FFT_SIZE / 2; i++) {
+        // Calculate an exponentially growing band size
+        float multiplier = pow(static_cast<float>(FFT_SIZE / 2) / 1.0f, 1.0f / 10.0f);
+        int endBin = static_cast<int>(pow(multiplier, b + 1));
+        
+        if (b == 9 || endBin > (FFT_SIZE / 2)) {
+            endBin = FFT_SIZE / 2;
+        }
+        
+        if (endBin <= currentBin) {
+            endBin = currentBin + 1; 
+        }
+
+        for (int i = currentBin; i < endBin; i++) {
             bandEnergies[b] += MeanMagnitude[i];
         }
-        bandEnergies[b] /= bandSize;
+        
+        bandEnergies[b] /= (endBin - currentBin);
+        currentBin = endBin;
     }
 
     // stats
@@ -328,10 +372,6 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
 
     tmpresult.frequencyCutoff = sampleRate / 2.0f; // Nyquist
 
-    // Multi-metric detection: spectral analysis + bitrate heuristic
-    // High CV > 1.95 = lossy (catches high-bitrate MP3)
-    // Low-Medium CV with 32-400 kbps = likely MP3 (catches V0, V1, V9, etc.)
-    // Low CV with variable/0 bitrate = likely lossless (FLAC, WAV, etc.)
     bool spectralLossy = coefficientOfVariation > 1.95f;
     bool bitrateLossy = (bitrate > 32 && bitrate < 400); // Catch all MP3 VBR variants
     tmpresult.likelyLossy = spectralLossy || bitrateLossy;

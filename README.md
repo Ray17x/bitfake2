@@ -6,10 +6,36 @@ One common problem was that getting a track’s metadata required long `ffprobe`
   <img src="bitfakethelogotrust.png" width="500">
 </p>
 
-# Latest Version: v1.3
-This release applies a hotfix to the `gmd` (GetMetaData) flag so it actually gets metadata across a directory. Also removing musicbrainz library from the entire thing to get rid of that dependency being required. You can now build the project without musicbrainz dev libraries, but musicbrainz features will be unavailable until I re-add the library in a future release. This is a temporary solution to speed up development and get rid of the musicbrainz dependency for now, but I do plan on re-adding it in the future. (maybe via libcurl..)
+# Latest Version: v1.4 (Coming in a couple of hours!)
+This aims to be a smaller yet CRITICAL! update.
 
-Also fixed the conversion not working at all to it actually converting files. Converting to a .mp3 with a differnet quality than 192 is buggy... sorry
+The Spectural analysis function (used to) load(s) an entire audio file into memory. This could've easily caused a massive memory leak and an OOM crash. Now, the function loads the file in smaller chunks, and performs the analysis on each chunk iteratively. This should be much more memory efficient and prevent crashes on larger files. I am super sorry to anyone who had to deal with that issue :C
+
+Also a lot of the code for spectural analysis is OPTIMIZED! Its so much fucking FASTER DUDE!!! thats awesome, right? 
+
+### Heres the output of a .FLAC 96kHz vs MP3 192kbps on the new version:
+```
+----------------------
+Title: Elite
+Artist: Deftones
+Album: White Pony
+Diagnosis: Likely lossless: Even spectrum distribution detected.
+Likely Lossy: No
+Frequency Cutoff: 48000.00 Hz
+Noise Floor Elevation: 116.58 dB
+Banding Score: 1.17
+----------------------
+Title: Elite
+Artist: Deftones
+Album: White Pony
+Diagnosis: Likely lossy: Uneven spectrum distribution detected.
+Likely Lossy: Yes
+Frequency Cutoff: 24000.00 Hz
+Noise Floor Elevation: 120.05 dB
+Banding Score: 1.20
+```
+
+... (more in the changelog when i get to it im a lazy bum..)
 
 ## Implemented Features
 * Get metadata

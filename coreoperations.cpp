@@ -20,15 +20,15 @@ namespace gb = globals;
 #include <thread>
 #include <atomic>
 #include <string>
-#include <musicbrainz5/Query.h>
-#include <musicbrainz5/Metadata.h>
-#include <musicbrainz5/Artist.h>
-#include <musicbrainz5/Release.h>
-#include <musicbrainz5/Track.h>
-#include <musicbrainz5/Recording.h>
-#include <musicbrainz5/ReleaseGroup.h>
-#include <musicbrainz5/NameCredit.h>
-#include <musicbrainz5/ArtistCredit.h>
+// #include <musicbrainz5/Query.h>
+// #include <musicbrainz5/Metadata.h>
+// #include <musicbrainz5/Artist.h>
+// #include <musicbrainz5/Release.h>
+// #include <musicbrainz5/Track.h>
+// #include <musicbrainz5/Recording.h>
+// #include <musicbrainz5/ReleaseGroup.h>
+// #include <musicbrainz5/NameCredit.h>
+// #include <musicbrainz5/ArtistCredit.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -589,18 +589,16 @@ bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Ope
     return true;
 }
 
-
-
-struct MBAudioInfo {
-    std::string MUSICBRAINZ_ALBUMARTISTID;
-    std::string MUSICBRAINZ_ALBUMID;
-    std::string MUSICBRAINZ_ALBUMSTATUS;
-    std::string MUSICBRAINZ_ARTISTID;
-    std::string MUSICBRAINZ_RELEASEGROUPID;
-    std::string MUSICBRAINZ_RELEASETRACKID;
-    std::string MUSICBRAINZ_TRACKID;
-    std::string MUSICBRAINZ_WORKID;
-};
+// struct MBAudioInfo {
+//     std::string MUSICBRAINZ_ALBUMARTISTID;
+//     std::string MUSICBRAINZ_ALBUMID;
+//     std::string MUSICBRAINZ_ALBUMSTATUS;
+//     std::string MUSICBRAINZ_ARTISTID;
+//     std::string MUSICBRAINZ_RELEASEGROUPID;
+//     std::string MUSICBRAINZ_RELEASETRACKID;
+//     std::string MUSICBRAINZ_TRACKID;
+//     std::string MUSICBRAINZ_WORKID;
+// };
 
 // duh- dah -duh -dah dah- disappointed in this fuck ass API
 // (Disappointed - Death Grips)
@@ -617,18 +615,17 @@ namespace Operations {
    things as clean and organized as possible, but no promises >:D
 */
 
-
-void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, AudioFormat format,
+bool ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, AudioFormat format,
                        VBRQualities quality) {
     if (!fs::exists(inputPath)) {
         err("Input path does not exist.");
-        return;
+        return false;
     }
 
     if (fs::is_directory(inputPath)) {
         if (!fs::exists(outputPath) || !fs::is_directory(outputPath)) {
             err("Output path does not exist or is not a directory!");
-            return;
+            return false;
         }
 
         std::size_t convertedCount = 0;
@@ -644,40 +641,34 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
                 continue;
             }
 
-            ConvertToFileType(entry.path(), outputPath, format, quality);
+            if (!ConvertToFileType(entry.path(), outputPath, format, quality)) {
+                err("Failed to convert file.");
+                return false;
+            }
             ++convertedCount;
         }
 
         if (convertedCount == 0) {
             warn("No valid audio files found in input directory for conversion.");
-            return;
+            return false;
         }
 
         yay(("Directory conversion completed. Converted " + std::to_string(convertedCount) + " file(s).").c_str());
         if (skippedCount > 0) {
             warn(("Skipped " + std::to_string(skippedCount) + " non-audio file(s).").c_str());
         }
-        return;
+        return true;
     }
 
     if (!fs::is_regular_file(inputPath)) {
         err("Input path is not a regular file.");
-        return;
+        return false;
     }
 
     if (!fc::IsSpecificAudioFormat(inputPath, op::AudioFormat::FLAC) &&
         !fc::IsSpecificAudioFormat(inputPath, op::AudioFormat::WAV)) {
         warn("Input file is not a lossless file. Conversion may result in quality loss. :(");
     }
-
-    /* Redundant check here, alr implemnted after strcmp passes for a -cvrt / --convert flag */
-
-    // // Output path here will be the global var -po if specified.
-    // if (!fs::exists(outputPath) || !fs::is_directory(outputPath))
-    // {
-    //     err("Output path does not exist or is not a regular file!");
-    //     return; // exit function early due to invalid output path
-    // }
 
     (void)quality;
 
@@ -703,14 +694,14 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
             break;
         default:
             err("Unsupported libsndfile output format.");
-            return;
+            return false;
         }
 
         SF_INFO inInfo{};
         SNDFILE *inFile = sf_open(inputPath.string().c_str(), SFM_READ, &inInfo);
         if (!inFile) {
             err("Failed to open input audio file for conversion.");
-            return;
+            return false;
         }
 
         SF_INFO outInfo{};
@@ -721,14 +712,14 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
         if (!sf_format_check(&outInfo)) {
             err("Output format is not supported by the current libsndfile build.");
             sf_close(inFile);
-            return;
+            return false;
         }
 
         SNDFILE *outFile = sf_open(outputFile.string().c_str(), SFM_WRITE, &outInfo);
         if (!outFile) {
             err("Failed to create output audio file for conversion.");
             sf_close(inFile);
-            return;
+            return false;
         }
 
         constexpr sf_count_t frameBlockSize = 4096;
@@ -741,7 +732,7 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
                 err("Audio conversion write failed before all frames were written.");
                 sf_close(inFile);
                 sf_close(outFile);
-                return;
+                return false;
             }
         }
 
@@ -750,7 +741,7 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
     } else {
         if (!ConvertWithLibAv(inputPath, outputFile, format, gb::opusBitrateKbps)) {
             err("Library-based conversion failed for requested output format.");
-            return;
+            return false;
         }
     }
 
@@ -778,6 +769,7 @@ void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, Au
     yay("Conversion completed successfully!");
     plog("Output file:");
     yay(outputFile.c_str());
+    return true;
 }
 
 void ApplyReplayGain(const fs::path &path, ReplayGainByTrack trackGainInfo, ReplayGainByAlbum albumGainInfo) {
@@ -1267,7 +1259,7 @@ void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std
     fs::recursive_directory_iterator dirIter(dirPath);
     std::size_t taggedCount = 0;
     std::size_t failedCount = 0;
-    for (const auto &entry: dirIter) {
+    for (const auto &entry : dirIter) {
         if (!entry.is_regular_file() || !fc::IsValidAudioFile(entry.path())) {
             ++failedCount;
             continue;
@@ -1288,11 +1280,12 @@ void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std
         }
     }
 
-
     if (taggedCount > 0) {
         yay(("Successfully updated tag for " + std::to_string(taggedCount) + " file(s).").c_str());
         if (failedCount > 0) {
-            warn(("Failed to update tag for " + std::to_string(failedCount) + " file(s). (Don't Panic! It could just be the album cover!)").c_str());
+            warn(("Failed to update tag for " + std::to_string(failedCount) +
+                  " file(s). (Don't Panic! It could just be the album cover!)")
+                     .c_str());
         }
         return;
     } else {

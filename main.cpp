@@ -54,8 +54,11 @@ int main(int argc, char *argv[]) {
                        "(album gain will be left empty)\n");
                 printf("  -arg, --applyalbumreplaygain\t Calculate album replaygain and apply it to the file(s) (track "
                        "gain will be left empty)\n");
-                printf("  -oia, --organizeintoalbums\t Organize audio files in a directory into album subdirectories\n");
+                printf(
+                    "  -oia, --organizeintoalbums\t Organize audio files in a directory into album subdirectories\n");
                 printf("  -oiaa, --organizeintoartistalbum\t Organize audio files into artist/album subdirectories\n");
+                printf(" -cvrt, --convertto <fmt[:q]>\t Convert input file(s) to specified format (e.g. mp3:V0, "
+                       "flac:L8, opus:160, wav)\n");
                 printf("  -v, --version\t\t\t Show program version\n");
                 return EXIT_SUCCESS;
             }
@@ -96,7 +99,8 @@ int main(int argc, char *argv[]) {
                             try {
                                 int bitrateKbps = std::stoi(qualityStr);
                                 if (bitrateKbps < 0 || bitrateKbps > 512) {
-                                    err("Opus bitrate must be between 0 and 512 kbps (inclusive).");
+                                    err("Opus bitrate must be between 0 and 512 kbps (inclusive). (Though I dont get "
+                                        "why you would want 0..)");
                                     return EXIT_FAILURE;
                                 }
                                 gb::opusBitrateKbps = bitrateKbps;
@@ -356,20 +360,51 @@ int main(int argc, char *argv[]) {
         }
 
         if (strcmp(argv[j], "-cvrt") == 0 || strcmp(argv[j], "--convert") == 0) {
-            // first check for po
-            if (gb::conversionOutputDirectory.empty()) {
-                err("When specifying -cvrt, you must input a valid output directory after a -po / --pathout flag");
-                return EXIT_FAILURE;
-            }
-            // Check other parts of the po now
-            if (!fs::exists(gb::conversionOutputDirectory) || !fs::is_directory(gb::conversionOutputDirectory)) {
-                err("When specifying an output directory after -po / --pathout flag, ensure the path\n is a exists and "
-                    "is a directory!");
+            // converting stuff now..
+            if (!fs::exists(gb::conversionOutputDirectory)) {
+                err("Oh no! Did you provide an output **directory** via -po? :(");
                 return EXIT_FAILURE;
             }
 
-            // Commit it.
-            op::ConvertToFileType(gb::inputFile, gb::conversionOutputDirectory, gb::outputFormat, gb::VBRQuality);
+            if (fs::is_directory(gb::inputFile)) {
+                yay("trying to convert directory >:P...");
+                fs::directory_iterator dirIter(gb::inputFile);
+
+                for (const auto &entry : dirIter) {
+                    if (!entry.is_regular_file()) {
+
+                        warn((std::string("Skipping non-regular file: ") + entry.path().string()).c_str());
+                        continue;
+                    }
+                    if (!fc::IsValidAudioFile(entry.path())) {
+                        warn((std::string("Skipping non-audio file: ") + entry.path().string()).c_str());
+                        continue;
+                    }
+
+                    try {
+                        op::ConvertToFileType(entry.path(), gb::conversionOutputDirectory, gb::outputFormat,
+                                              gb::VBRQuality);
+                    } catch (const std::exception &e) {
+                        err((std::string("Failed to convert file: ") + entry.path().string() + " Error: " + e.what())
+                                .c_str());
+                    }
+                }
+            } else {
+                yay("Trying to convert single file >:P...");
+                try {
+                    op::ConvertToFileType(gb::inputFile, gb::conversionOutputDirectory, gb::outputFormat,
+                                          gb::VBRQuality);
+                } catch (const std::exception &e) {
+                    err((std::string("Failed to convert file: ") + gb::inputFile.string() + " Error: " + e.what())
+                            .c_str());
+                }
+            }
+
+            warn("READ MEE!!!! Conversion is a bit buggy and i've been working on a fix for it!! Please report issues "
+                 "to my contact email \n\t or my github repo if you encounter any problems with it");
+            warn("More prominently, it affects qualities, you can convert to opus VBR with -f opus:<vbr> but it won't "
+                 "work for .mp3 for now (as of 1.3)");
+            warn("im working on something, sorry for the inconvenience :(");
         }
 
         if (strcmp(argv[j], "-t") == 0 || strcmp(argv[j], "--tag") == 0) {

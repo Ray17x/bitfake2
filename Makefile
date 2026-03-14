@@ -3,7 +3,6 @@ CXXFLAGS += -std=c++17 -Wall -Wextra -I./Utilities
 LDFLAGS  += -ltag -lfftw3 -lebur128 -lsndfile -lavformat -lavcodec -lswresample -lavutil
 
 BUILD_DIR := build
-# DESTDIR is the 'fake' root used by Portage
 DESTDIR   ?= 
 PREFIX    ?= /usr/local
 
@@ -34,3 +33,6 @@ install: bitf
 
 uninstall:
 	rm -f $(BINDIR)/bitf 
+
+clean:
+	rm -rf $(BUILD_DIR) $(BIN)

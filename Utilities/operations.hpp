@@ -176,7 +176,7 @@ std::string OutputExtensionForFormat(AudioFormat format);
 MusicBrainzInfo GetMusicBrainzInfo(const fs::path &path);
 
 // Core operations
-void ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, AudioFormat format, VBRQualities quality);
+bool ConvertToFileType(const fs::path &inputPath, const fs::path &outputPath, AudioFormat format, VBRQualities quality);
 void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std::string &value);
 void ApplyReplayGain(const fs::path &path, ReplayGainByTrack trackGainInfo, ReplayGainByAlbum albumGainInfo);
 ReplayGainByTrack CalculateReplayGainTrack(const fs::path &path);

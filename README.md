@@ -7,7 +7,7 @@ One common problem was that getting a track’s metadata required long `ffprobe`
 </p>
 
 # Latest Version: v1.3
-This release applies a hotfix to the `gmd` (GetMetaData) flag so it actually gets metadata across a directory.
+This release applies a hotfix to the `gmd` (GetMetaData) flag so it actually gets metadata across a directory. Also removing musicbrainz library from the entire thing to get rid of that dependency being required.
 
 ## Implemented Features
 * Get metadata

@@ -317,7 +317,6 @@ int main(int argc, char *argv[]) {
 
         if (strcmp(argv[j], "-sa") == 0 || strcmp(argv[j], "--spectralanalysis") == 0) {
             std::vector<op::SpectralAnalysisResult> results = op::SpectralAnalysisList(gb::inputFile);
-            warn("If a song's bitrate is >44.1kHz, results may be inaccurate due to the limitations of my SKILLs.");
             if (results.empty()) {
                 err("No spectral analysis results found for input path.");
                 return EXIT_FAILURE;

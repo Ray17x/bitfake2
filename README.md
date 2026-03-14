@@ -9,6 +9,8 @@ One common problem was that getting a track’s metadata required long `ffprobe`
 # Latest Version: v1.3
 This release applies a hotfix to the `gmd` (GetMetaData) flag so it actually gets metadata across a directory. Also removing musicbrainz library from the entire thing to get rid of that dependency being required. You can now build the project without musicbrainz dev libraries, but musicbrainz features will be unavailable until I re-add the library in a future release. This is a temporary solution to speed up development and get rid of the musicbrainz dependency for now, but I do plan on re-adding it in the future. (maybe via libcurl..)
 
+Also fixed the conversion not working at all to it actually converting files. Converting to a .mp3 with a differnet quality than 192 is buggy... sorry
+
 ## Implemented Features
 * Get metadata
 * Get ReplayGain info (useful for music players)

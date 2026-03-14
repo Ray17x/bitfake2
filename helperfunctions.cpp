@@ -107,11 +107,7 @@ std::vector<AudioMetadataResult> GetMetaDataList(const fs::path &path) {
     std::vector<AudioMetadataResult> results;
 
     if (!fs::exists(path)) {
-<<<<<<< HEAD
         warn("Metadata list failed: input path does not exist");
-=======
-        warn("Metadata list failed: input path does not exist.");
->>>>>>> 844c8c9 (Fixed GMD Flag across directory.)
         return results;
     }
 

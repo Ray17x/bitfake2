@@ -404,16 +404,20 @@ bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Ope
 
     auto pushConvertedToFifo = [&](const AVFrame *inFrame) -> bool {
         const int inputSamples = (inFrame != nullptr) ? inFrame->nb_samples : 0;
-        int maxOutSamples = av_rescale_rnd(swr_get_delay(resampler, decoderContext->sample_rate) + inputSamples,
-                                           encoderContext->sample_rate, decoderContext->sample_rate, AV_ROUND_UP);
+        int maxOutSamples = swr_get_out_samples(resampler, inputSamples);
 
-        if (maxOutSamples <= 0) {
+        if (maxOutSamples < 0) {
+            err("libav: failed to compute SWR output size.");
+            return false;
+        }
+        
+        if (maxOutSamples == 0) {
             return true;
         }
 
         uint8_t **convertedData = nullptr;
         int convertedLineSize = 0;
-
+        // oh my fuck what is this formatting
         int allocStatus = av_samples_alloc_array_and_samples(&convertedData, &convertedLineSize,
                                                              encoderContext->ch_layout.nb_channels, maxOutSamples,
                                                              encoderContext->sample_fmt, 0);
@@ -433,11 +437,13 @@ bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Ope
             return false;
         }
 
-        if (av_audio_fifo_realloc(audioFifo, av_audio_fifo_size(audioFifo) + convertedSamples) < 0) {
-            av_freep(&convertedData[0]);
-            av_freep(&convertedData);
-            err("libav: failed to grow audio FIFO.");
-            return false;
+        if (av_audio_fifo_space(audioFifo) < convertedSamples) {
+            if (av_audio_fifo_realloc(audioFifo, av_audio_fifo_size(audioFifo) + convertedSamples) < 0) {
+                av_freep(&convertedData[0]);
+                av_freep(&convertedData);
+                err("libav: failed to grow audio FIFO.");
+                return false;
+            }
         }
 
         int wrote = av_audio_fifo_write(audioFifo, reinterpret_cast<void **>(convertedData), convertedSamples);
@@ -561,13 +567,9 @@ bool ConvertWithLibAv(const fs::path &inputPath, const fs::path &outputFile, Ope
         }
     }
 
-    if (encoderContext->frame_size > 0 && av_audio_fifo_size(audioFifo) > 0) {
-        if (!encodeFromFifo(encoderContext->frame_size, true)) {
-            cleanup();
-            return false;
-        }
-    } else if (encoderContext->frame_size == 0 && av_audio_fifo_size(audioFifo) > 0) {
-        if (!encodeFromFifo(av_audio_fifo_size(audioFifo), false)) {
+    while (av_audio_fifo_size(audioFifo) > 0) {
+        int drainSize = encoderContext->frame_size > 0 ? encoderContext->frame_size : av_audio_fifo_size(audioFifo);
+        if (!encodeFromFifo(drainSize, true)) {
             cleanup();
             return false;
         }

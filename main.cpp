@@ -161,8 +161,10 @@ int main(int argc, char *argv[]) {
             }
 
             if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
-                printf("bitfake ver %s\n", gb::version.c_str());
-                printf("ty for using my cli <3, enjoy :D\n");
+                printf("Bitfake Version %s\n", gb::version.c_str());
+                printf("By Ray17x on Github <ray@atl.tools> (alias: koyomi / kero on various platforms)\n");
+                printf("This software is provided as-is, without any express or implied warranty.\n In no event will the authors be "
+                       "held liable for any damages arising from the use of this software.\n");
                 return EXIT_SUCCESS;
             }
 

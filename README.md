@@ -6,7 +6,7 @@ One common problem was that getting a track’s metadata required long `ffprobe`
   <img src="bitfakethelogotrust.png" width="500">
 </p>
 
-# Latest Version: v1.4 (Coming in a couple of hours!)
+# Latest Version: v1.4 (it *CAME* out.)
 This aims to be a smaller yet CRITICAL! update.
 
 The Spectural analysis function (used to) load(s) an entire audio file into memory. This could've easily caused a massive memory leak and an OOM crash. Now, the function loads the file in smaller chunks, and performs the analysis on each chunk iteratively. This should be much more memory efficient and prevent crashes on larger files. I am super sorry to anyone who had to deal with that issue :C

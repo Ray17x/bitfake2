@@ -7,7 +7,7 @@ op::AudioFormat outputFormat = op::AudioFormat::MP3;
 op::VBRQualities VBRQuality;
 int opusBitrateKbps = 192; // default 192
 bool outputToTerminal = true;
-std::string version = "0.1.3";
+std::string version = "0.1.4";
 fs::path conversionOutputDirectory;
 std::string tag, val;
 } // namespace globals

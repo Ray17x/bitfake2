@@ -20,6 +20,16 @@ namespace gb = globals;
 #include <thread>
 #include <atomic>
 #include <string>
+#include <cmath>
+#include <limits>
+#include <array>
+#include <cstdint>
+#include <cctype>
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <fftw3.h>
 // #include <musicbrainz5/Query.h>
 // #include <musicbrainz5/Metadata.h>
 // #include <musicbrainz5/Artist.h>
@@ -49,6 +59,449 @@ std::string AvErrorToString(int errorCode) {
     char errorBuffer[AV_ERROR_MAX_STRING_SIZE] = {0};
     av_strerror(errorCode, errorBuffer, sizeof(errorBuffer));
     return std::string(errorBuffer);
+}
+
+struct Rgb {
+    std::uint8_t r;
+    std::uint8_t g;
+    std::uint8_t b;
+};
+
+double Clamp01(double value) {
+    if (value < 0.0) {
+        return 0.0;
+    }
+    if (value > 1.0) {
+        return 1.0;
+    }
+    return value;
+}
+
+Rgb InterpolateColor(const Rgb &a, const Rgb &b, double t) {
+    const double clamped = Clamp01(t);
+    return {
+        static_cast<std::uint8_t>(a.r + (b.r - a.r) * clamped),
+        static_cast<std::uint8_t>(a.g + (b.g - a.g) * clamped),
+        static_cast<std::uint8_t>(a.b + (b.b - a.b) * clamped),
+    };
+}
+
+Rgb SpekLikeColor(double normalizedDb) {
+    const double t = Clamp01(normalizedDb);
+    constexpr std::array<double, 7> positions = {0.0, 0.12, 0.28, 0.46, 0.66, 0.84, 1.0};
+    constexpr std::array<Rgb, 7> colors = {
+        Rgb{0, 0, 0},
+        Rgb{15, 8, 48},
+        Rgb{72, 16, 130},
+        Rgb{170, 16, 110},
+        Rgb{255, 36, 18},
+        Rgb{255, 168, 0},
+        Rgb{255, 255, 210},
+    };
+
+    for (std::size_t i = 1; i < positions.size(); ++i) {
+        if (t <= positions[i]) {
+            const double local = (t - positions[i - 1]) / (positions[i] - positions[i - 1]);
+            return InterpolateColor(colors[i - 1], colors[i], local);
+        }
+    }
+
+    return colors.back();
+}
+
+void PutPixel(std::vector<std::uint8_t> &image, int width, int height, int x, int y, const Rgb &color) {
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+        return;
+    }
+    const std::size_t index = static_cast<std::size_t>(y * width + x) * 3;
+    image[index] = color.r;
+    image[index + 1] = color.g;
+    image[index + 2] = color.b;
+}
+
+void FillRect(std::vector<std::uint8_t> &image, int width, int height, int x, int y, int rectWidth, int rectHeight,
+              const Rgb &color) {
+    for (int row = 0; row < rectHeight; ++row) {
+        for (int col = 0; col < rectWidth; ++col) {
+            PutPixel(image, width, height, x + col, y + row, color);
+        }
+    }
+}
+
+void DrawHorizontalLine(std::vector<std::uint8_t> &image, int width, int height, int x1, int x2, int y,
+                        const Rgb &color) {
+    if (x2 < x1) {
+        std::swap(x1, x2);
+    }
+    for (int x = x1; x <= x2; ++x) {
+        PutPixel(image, width, height, x, y, color);
+    }
+}
+
+void DrawVerticalLine(std::vector<std::uint8_t> &image, int width, int height, int x, int y1, int y2,
+                      const Rgb &color) {
+    if (y2 < y1) {
+        std::swap(y1, y2);
+    }
+    for (int y = y1; y <= y2; ++y) {
+        PutPixel(image, width, height, x, y, color);
+    }
+}
+
+void DrawSevenSegmentChar(std::vector<std::uint8_t> &image, int width, int height, int x, int y, int scale, char ch,
+                          const Rgb &color) {
+    const int glyphWidth = 3 * scale;
+    const int glyphHeight = 5 * scale;
+    const int stroke = std::max(1, scale / 2);
+
+    auto drawSegment = [&](int seg) {
+        switch (seg) {
+        case 0:
+            FillRect(image, width, height, x + stroke, y, glyphWidth - 2 * stroke, stroke, color);
+            break;
+        case 1:
+            FillRect(image, width, height, x + glyphWidth - stroke, y + stroke, stroke,
+                     glyphHeight / 2 - stroke, color);
+            break;
+        case 2:
+            FillRect(image, width, height, x + glyphWidth - stroke, y + glyphHeight / 2, stroke,
+                     glyphHeight / 2 - stroke, color);
+            break;
+        case 3:
+            FillRect(image, width, height, x + stroke, y + glyphHeight - stroke, glyphWidth - 2 * stroke, stroke,
+                     color);
+            break;
+        case 4:
+            FillRect(image, width, height, x, y + glyphHeight / 2, stroke, glyphHeight / 2 - stroke, color);
+            break;
+        case 5:
+            FillRect(image, width, height, x, y + stroke, stroke, glyphHeight / 2 - stroke, color);
+            break;
+        case 6:
+            FillRect(image, width, height, x + stroke, y + glyphHeight / 2 - stroke / 2, glyphWidth - 2 * stroke,
+                     stroke, color);
+            break;
+        default:
+            break;
+        }
+    };
+
+    if (ch == ':') {
+        FillRect(image, width, height, x + scale, y + glyphHeight / 3, scale, scale, color);
+        FillRect(image, width, height, x + scale, y + (2 * glyphHeight) / 3, scale, scale, color);
+        return;
+    }
+
+    if (ch == '.') {
+        FillRect(image, width, height, x + glyphWidth - stroke, y + glyphHeight - stroke, stroke, stroke, color);
+        return;
+    }
+
+    if (ch == '-') {
+        drawSegment(6);
+        return;
+    }
+
+    if (ch == ' ') {
+        return;
+    }
+
+    std::array<bool, 7> segments = {false, false, false, false, false, false, false};
+    switch (ch) {
+    case '0':
+        segments = {true, true, true, true, true, true, false};
+        break;
+    case '1':
+        segments = {false, true, true, false, false, false, false};
+        break;
+    case '2':
+        segments = {true, true, false, true, true, false, true};
+        break;
+    case '3':
+        segments = {true, true, true, true, false, false, true};
+        break;
+    case '4':
+        segments = {false, true, true, false, false, true, true};
+        break;
+    case '5':
+        segments = {true, false, true, true, false, true, true};
+        break;
+    case '6':
+        segments = {true, false, true, true, true, true, true};
+        break;
+    case '7':
+        segments = {true, true, true, false, false, false, false};
+        break;
+    case '8':
+        segments = {true, true, true, true, true, true, true};
+        break;
+    case '9':
+        segments = {true, true, true, true, false, true, true};
+        break;
+    default:
+        return;
+    }
+
+    for (int seg = 0; seg < 7; ++seg) {
+        if (segments[static_cast<std::size_t>(seg)]) {
+            drawSegment(seg);
+        }
+    }
+}
+
+int NumberTextWidth(const std::string &text, int scale) {
+    if (text.empty()) {
+        return 0;
+    }
+    return static_cast<int>(text.size()) * (3 * scale + scale) - scale;
+}
+
+void DrawNumberText(std::vector<std::uint8_t> &image, int width, int height, int x, int y, int scale,
+                    const std::string &text, const Rgb &color) {
+    int cursorX = x;
+    for (char ch : text) {
+        DrawSevenSegmentChar(image, width, height, cursorX, y, scale, ch, color);
+        cursorX += (3 * scale + scale);
+    }
+}
+
+std::array<std::uint8_t, 7> Glyph5x7(char ch) {
+    switch (ch) {
+    case 'A':
+        return {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
+    case 'B':
+        return {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E};
+    case 'C':
+        return {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E};
+    case 'D':
+        return {0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E};
+    case 'E':
+        return {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F};
+    case 'F':
+        return {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10};
+    case 'G':
+        return {0x0E, 0x11, 0x10, 0x13, 0x11, 0x11, 0x0F};
+    case 'H':
+        return {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11};
+    case 'I':
+        return {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x1F};
+    case 'J':
+        return {0x1F, 0x02, 0x02, 0x02, 0x12, 0x12, 0x0C};
+    case 'K':
+        return {0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11};
+    case 'L':
+        return {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F};
+    case 'M':
+        return {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11};
+    case 'N':
+        return {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11};
+    case 'O':
+        return {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
+    case 'P':
+        return {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10};
+    case 'Q':
+        return {0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D};
+    case 'R':
+        return {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11};
+    case 'S':
+        return {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E};
+    case 'T':
+        return {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04};
+    case 'U':
+        return {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E};
+    case 'V':
+        return {0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04};
+    case 'W':
+        return {0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A};
+    case 'X':
+        return {0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11};
+    case 'Y':
+        return {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04};
+    case 'Z':
+        return {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F};
+    case '(': 
+        return {0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02};
+    case ')':
+        return {0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08};
+    case '/':
+        return {0x01, 0x02, 0x04, 0x08, 0x10, 0x00, 0x00};
+    case '.':
+        return {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04};
+    case '-':
+        return {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00};
+    case ':':
+        return {0x00, 0x04, 0x00, 0x00, 0x04, 0x00, 0x00};
+    case ' ':
+        return {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    default:
+        return {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    }
+}
+
+void DrawGlyph5x7Char(std::vector<std::uint8_t> &image, int width, int height, int x, int y, int scale, char ch,
+                      const Rgb &color) {
+    const std::array<std::uint8_t, 7> rows = Glyph5x7(ch);
+    for (int row = 0; row < 7; ++row) {
+        for (int col = 0; col < 5; ++col) {
+            if (rows[static_cast<std::size_t>(row)] & (1U << (4 - col))) {
+                FillRect(image, width, height, x + col * scale, y + row * scale, scale, scale, color);
+            }
+        }
+    }
+}
+
+int LabelTextWidth(const std::string &text, int scale) {
+    int width = 0;
+    bool first = true;
+
+    for (char raw : text) {
+        const char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(raw)));
+        const bool sevenSegment = std::isdigit(static_cast<unsigned char>(ch)) || ch == ':' || ch == '.' || ch == '-';
+        const int glyphWidth = sevenSegment ? (3 * scale) : ((ch == ' ') ? (3 * scale) : (5 * scale));
+
+        if (!first) {
+            width += scale;
+        }
+        width += glyphWidth;
+        first = false;
+    }
+
+    return width;
+}
+
+void DrawLabelText(std::vector<std::uint8_t> &image, int width, int height, int x, int y, int scale,
+                   const std::string &text, const Rgb &color) {
+    int cursorX = x;
+    for (char raw : text) {
+        const char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(raw)));
+        const bool sevenSegment = std::isdigit(static_cast<unsigned char>(ch)) || ch == ':' || ch == '.' || ch == '-';
+
+        if (sevenSegment) {
+            DrawSevenSegmentChar(image, width, height, cursorX, y, scale, ch, color);
+            cursorX += 3 * scale;
+        } else {
+            DrawGlyph5x7Char(image, width, height, cursorX, y, scale, ch, color);
+            cursorX += (ch == ' ') ? (3 * scale) : (5 * scale);
+        }
+
+        cursorX += scale;
+    }
+}
+
+std::string FormatMinutesSeconds(double seconds) {
+    int totalSeconds = static_cast<int>(std::round(seconds));
+    if (totalSeconds < 0) {
+        totalSeconds = 0;
+    }
+    int minutes = totalSeconds / 60;
+    int remainder = totalSeconds % 60;
+
+    std::ostringstream stream;
+    stream << minutes << ':' << std::setw(2) << std::setfill('0') << remainder;
+    return stream.str();
+}
+
+bool WriteRgbPng(const fs::path &outputPath, int width, int height, const std::vector<std::uint8_t> &rgbData,
+                 std::string &errorMessage) {
+    const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_PNG);
+    if (!codec) {
+        errorMessage = "Unable to find PNG encoder in libavcodec.";
+        return false;
+    }
+
+    AVCodecContext *codecContext = avcodec_alloc_context3(codec);
+    if (!codecContext) {
+        errorMessage = "Unable to allocate PNG codec context.";
+        return false;
+    }
+
+    codecContext->width = width;
+    codecContext->height = height;
+    codecContext->pix_fmt = AV_PIX_FMT_RGB24;
+    codecContext->time_base = AVRational{1, 1};
+
+    int status = avcodec_open2(codecContext, codec, nullptr);
+    if (status < 0) {
+        errorMessage = "Unable to open PNG encoder: " + AvErrorToString(status);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    AVFrame *frame = av_frame_alloc();
+    AVPacket *packet = av_packet_alloc();
+    if (!frame || !packet) {
+        errorMessage = "Unable to allocate frame/packet for PNG encoding.";
+        if (frame)
+            av_frame_free(&frame);
+        if (packet)
+            av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    frame->format = codecContext->pix_fmt;
+    frame->width = codecContext->width;
+    frame->height = codecContext->height;
+    status = av_frame_get_buffer(frame, 32);
+    if (status < 0) {
+        errorMessage = "Unable to allocate frame buffer: " + AvErrorToString(status);
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    status = av_frame_make_writable(frame);
+    if (status < 0) {
+        errorMessage = "Frame is not writable: " + AvErrorToString(status);
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    for (int y = 0; y < height; ++y) {
+        std::memcpy(frame->data[0] + static_cast<std::size_t>(y) * frame->linesize[0],
+                    rgbData.data() + static_cast<std::size_t>(y * width) * 3,
+                    static_cast<std::size_t>(width) * 3);
+    }
+
+    status = avcodec_send_frame(codecContext, frame);
+    if (status < 0) {
+        errorMessage = "Failed to send PNG frame for encoding: " + AvErrorToString(status);
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    status = avcodec_receive_packet(codecContext, packet);
+    if (status < 0) {
+        errorMessage = "Failed to receive PNG packet: " + AvErrorToString(status);
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    std::ofstream outputFile(outputPath, std::ios::binary);
+    if (!outputFile.is_open()) {
+        errorMessage = "Unable to open output file for writing PNG.";
+        av_packet_unref(packet);
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&codecContext);
+        return false;
+    }
+
+    outputFile.write(reinterpret_cast<const char *>(packet->data), packet->size);
+    outputFile.close();
+
+    av_packet_unref(packet);
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+    avcodec_free_context(&codecContext);
+    return true;
 }
 
 const AVCodec *FindPreferredEncoder(Operations::AudioFormat format) {
@@ -1298,6 +1751,254 @@ void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std
         err("Failed to update tag for any files in the directory. Are you sure the directory has music? :(");
         return;
     }
+}
+
+
+void GenerateSpectrogram(const fs::path &inputPath, const fs::path &outputImagePath) {
+    if (!fs::exists(inputPath) || !fs::is_regular_file(inputPath) || !fc::IsValidAudioFile(inputPath)) {
+        err("Input path does not exist or is not a regular file.");
+        return;
+    }
+
+    SF_INFO sfinfo{};
+    SNDFILE *sndfile = sf_open(inputPath.string().c_str(), SFM_READ, &sfinfo);
+    if (!sndfile) {
+        err("Failed to open input audio file for spectrogram generation.");
+        return;
+    }
+
+    if (sfinfo.channels <= 0 || sfinfo.samplerate <= 0) {
+        err("Input audio stream has invalid channel count or sample rate.");
+        sf_close(sndfile);
+        return;
+    }
+
+    constexpr int FFT_SIZE = 2048;
+
+    std::vector<double> monoSamples;
+    if (sfinfo.frames > 0) {
+        monoSamples.reserve(static_cast<std::size_t>(sfinfo.frames));
+    }
+
+    constexpr int READ_FRAMES = 4096;
+    std::vector<float> interleavedBuffer(static_cast<std::size_t>(READ_FRAMES * sfinfo.channels));
+
+    while (true) {
+        sf_count_t framesRead = sf_readf_float(sndfile, interleavedBuffer.data(), READ_FRAMES);
+        if (framesRead <= 0) {
+            break;
+        }
+
+        for (sf_count_t frame = 0; frame < framesRead; ++frame) {
+            double sampleSum = 0.0;
+            for (int channel = 0; channel < sfinfo.channels; ++channel) {
+                sampleSum += interleavedBuffer[static_cast<std::size_t>(frame) * sfinfo.channels + channel];
+            }
+            monoSamples.push_back(sampleSum / sfinfo.channels);
+        }
+    }
+
+    sf_close(sndfile);
+
+    if (monoSamples.size() < FFT_SIZE) {
+        err("Not enough decoded samples to generate spectrogram.");
+        return;
+    }
+
+    const int numBins = FFT_SIZE / 2 + 1;
+    const double nyquistHz = static_cast<double>(sfinfo.samplerate) / 2.0;
+    const double nyquistKHz = nyquistHz / 1000.0;
+    const double durationSec = static_cast<double>(monoSamples.size()) / sfinfo.samplerate;
+
+    constexpr int imageWidth = 1920;
+    constexpr int imageHeight = 1080;
+    constexpr int marginLeft = 90;
+    constexpr int marginTop = 40;
+    constexpr int marginRight = 220;
+    constexpr int marginBottom = 70;
+    constexpr int colorBarWidth = 28;
+    constexpr int colorBarGap = 24;
+
+    const int plotX = marginLeft;
+    const int plotY = marginTop;
+    const int plotWidth = imageWidth - marginLeft - marginRight;
+    const int plotHeight = imageHeight - marginTop - marginBottom;
+    const int colorBarX = plotX + plotWidth + colorBarGap;
+    const int colorBarY = plotY;
+
+    if (plotWidth <= 0 || plotHeight <= 0) {
+        err("Invalid spectrogram image dimensions.");
+        return;
+    }
+
+    std::vector<double> hannWindow(FFT_SIZE);
+    for (int i = 0; i < FFT_SIZE; ++i) {
+        hannWindow[i] = 0.5 * (1.0 - std::cos((2.0 * M_PI * i) / (FFT_SIZE - 1)));
+    }
+
+    std::vector<double> fftIn(FFT_SIZE, 0.0);
+    std::vector<fftw_complex> fftOut(static_cast<std::size_t>(numBins));
+    fftw_plan plan = fftw_plan_dft_r2c_1d(FFT_SIZE, fftIn.data(), fftOut.data(), FFTW_ESTIMATE);
+    if (!plan) {
+        err("Failed to allocate FFT plan for spectrogram generation.");
+        return;
+    }
+
+    constexpr double minDb = -120.0;
+    constexpr double maxDb = 0.0;
+
+    std::vector<std::uint8_t> image(static_cast<std::size_t>(imageWidth * imageHeight * 3), 0);
+    const Rgb background{5, 5, 8};
+    const Rgb plotBackground{8, 8, 12};
+    const Rgb axisColor{190, 190, 190};
+    const Rgb gridColor{42, 42, 54};
+    const Rgb labelColor{220, 220, 220};
+    FillRect(image, imageWidth, imageHeight, 0, 0, imageWidth, imageHeight, background);
+    FillRect(image, imageWidth, imageHeight, plotX, plotY, plotWidth, plotHeight, plotBackground);
+
+    std::vector<double> dbBins(static_cast<std::size_t>(numBins), minDb);
+
+    const std::size_t usableSamples = monoSamples.size() - FFT_SIZE;
+    const int denominator = std::max(1, plotWidth - 1);
+    for (int x = 0; x < plotWidth; ++x) {
+        const std::size_t startIndex = (usableSamples * static_cast<std::size_t>(x)) / denominator;
+
+        for (int i = 0; i < FFT_SIZE; ++i) {
+            fftIn[static_cast<std::size_t>(i)] = monoSamples[startIndex + static_cast<std::size_t>(i)] * hannWindow[static_cast<std::size_t>(i)];
+        }
+
+        fftw_execute(plan);
+
+        for (int bin = 0; bin < numBins; ++bin) {
+            const double realPart = fftOut[static_cast<std::size_t>(bin)][0];
+            const double imagPart = fftOut[static_cast<std::size_t>(bin)][1];
+            const double magnitude = std::sqrt(realPart * realPart + imagPart * imagPart) / (FFT_SIZE / 2.0);
+            const double dbValue = std::max(minDb, std::min(maxDb, 20.0 * std::log10(magnitude + 1e-12)));
+            dbBins[static_cast<std::size_t>(bin)] = dbValue;
+        }
+
+        for (int y = 0; y < plotHeight; ++y) {
+            const double frequencyRatio = 1.0 - static_cast<double>(y) / std::max(1, plotHeight - 1);
+            const double binPosition = frequencyRatio * (numBins - 1);
+            const int lowerBin = static_cast<int>(binPosition);
+            const int upperBin = std::min(numBins - 1, lowerBin + 1);
+            const double blend = binPosition - lowerBin;
+
+            const double dbValue = dbBins[static_cast<std::size_t>(lowerBin)] * (1.0 - blend) +
+                                   dbBins[static_cast<std::size_t>(upperBin)] * blend;
+
+            const double normalized = (dbValue - minDb) / (maxDb - minDb);
+            const Rgb color = SpekLikeColor(normalized);
+            PutPixel(image, imageWidth, imageHeight, plotX + x, plotY + y, color);
+        }
+    }
+
+    fftw_destroy_plan(plan);
+
+    const int xGridTicks = 10;
+    for (int i = 0; i <= xGridTicks; ++i) {
+        const int x = plotX + (plotWidth * i) / xGridTicks;
+        DrawVerticalLine(image, imageWidth, imageHeight, x, plotY, plotY + plotHeight, gridColor);
+
+        DrawVerticalLine(image, imageWidth, imageHeight, x, plotY + plotHeight, plotY + plotHeight + 8, axisColor);
+        const std::string timeLabel = FormatMinutesSeconds(durationSec * i / xGridTicks);
+        const int textWidth = NumberTextWidth(timeLabel, 2);
+        DrawNumberText(image, imageWidth, imageHeight, x - textWidth / 2, plotY + plotHeight + 14, 2, timeLabel,
+                       labelColor);
+    }
+
+    const int yGridTicks = 11;
+    for (int i = 0; i <= yGridTicks; ++i) {
+        const int y = plotY + (plotHeight * i) / yGridTicks;
+        DrawHorizontalLine(image, imageWidth, imageHeight, plotX, plotX + plotWidth, y, gridColor);
+
+        DrawHorizontalLine(image, imageWidth, imageHeight, plotX - 8, plotX, y, axisColor);
+        const double kHz = nyquistKHz * (1.0 - static_cast<double>(i) / yGridTicks);
+        std::ostringstream labelStream;
+        labelStream << std::fixed << std::setprecision(kHz < 10.0 ? 1 : 0) << kHz;
+        const std::string yLabel = labelStream.str();
+        DrawNumberText(image, imageWidth, imageHeight, 8, y - 5, 2, yLabel, labelColor);
+    }
+
+    DrawHorizontalLine(image, imageWidth, imageHeight, plotX, plotX + plotWidth, plotY, axisColor);
+    DrawHorizontalLine(image, imageWidth, imageHeight, plotX, plotX + plotWidth, plotY + plotHeight, axisColor);
+    DrawVerticalLine(image, imageWidth, imageHeight, plotX, plotY, plotY + plotHeight, axisColor);
+    DrawVerticalLine(image, imageWidth, imageHeight, plotX + plotWidth, plotY, plotY + plotHeight, axisColor);
+
+    for (int y = 0; y < plotHeight; ++y) {
+        const double normalized = 1.0 - static_cast<double>(y) / std::max(1, plotHeight - 1);
+        const Rgb color = SpekLikeColor(normalized);
+        FillRect(image, imageWidth, imageHeight, colorBarX, colorBarY + y, colorBarWidth, 1, color);
+    }
+
+    DrawHorizontalLine(image, imageWidth, imageHeight, colorBarX, colorBarX + colorBarWidth, colorBarY, axisColor);
+    DrawHorizontalLine(image, imageWidth, imageHeight, colorBarX, colorBarX + colorBarWidth, colorBarY + plotHeight,
+                       axisColor);
+    DrawVerticalLine(image, imageWidth, imageHeight, colorBarX, colorBarY, colorBarY + plotHeight, axisColor);
+    DrawVerticalLine(image, imageWidth, imageHeight, colorBarX + colorBarWidth, colorBarY, colorBarY + plotHeight,
+                     axisColor);
+
+    for (int db = 0; db >= static_cast<int>(minDb); db -= 20) {
+        const double normalized = (db - minDb) / (maxDb - minDb);
+        const int y = colorBarY + static_cast<int>((1.0 - normalized) * plotHeight);
+        DrawHorizontalLine(image, imageWidth, imageHeight, colorBarX + colorBarWidth, colorBarX + colorBarWidth + 8,
+                           y, axisColor);
+        DrawNumberText(image, imageWidth, imageHeight, colorBarX + colorBarWidth + 14, y - 5, 2, std::to_string(db),
+                       labelColor);
+    }
+
+    const std::string mainTitle = "SPECTROGRAM";
+    const int mainTitleScale = 3;
+    const int mainTitleWidth = LabelTextWidth(mainTitle, mainTitleScale);
+    DrawLabelText(image, imageWidth, imageHeight, (imageWidth - mainTitleWidth) / 2, 8, mainTitleScale, mainTitle,
+                  labelColor);
+
+    std::ostringstream infoStream;
+    infoStream << std::fixed << std::setprecision(1) << "SR " << (sfinfo.samplerate / 1000.0)
+               << " KHZ / DUR " << FormatMinutesSeconds(durationSec);
+    const std::string infoLine = infoStream.str();
+    const int infoScale = 2;
+    const int infoWidth = LabelTextWidth(infoLine, infoScale);
+    DrawLabelText(image, imageWidth, imageHeight, (imageWidth - infoWidth) / 2, 34, infoScale, infoLine,
+                  Rgb{180, 180, 180});
+
+    const std::string xAxisTitle = "TIME (S)";
+    const int xAxisTitleScale = 2;
+    const int xAxisWidth = LabelTextWidth(xAxisTitle, xAxisTitleScale);
+    DrawLabelText(image, imageWidth, imageHeight, plotX + (plotWidth - xAxisWidth) / 2, plotY + plotHeight + 40,
+                  xAxisTitleScale, xAxisTitle, labelColor);
+
+    const std::string yAxisTitle = "FREQUENCY (KHZ)";
+    DrawLabelText(image, imageWidth, imageHeight, 8, plotY - 22, 2, yAxisTitle, labelColor);
+
+    const std::string colorBarTitle = "LEVEL (DB)";
+    const int colorBarTitleWidth = LabelTextWidth(colorBarTitle, 2);
+    DrawLabelText(image, imageWidth, imageHeight,
+                  colorBarX + (colorBarWidth - colorBarTitleWidth) / 2,
+                  plotY - 22, 2, colorBarTitle, labelColor);
+
+    fs::path outputPath = outputImagePath;
+    if (outputPath.extension().empty()) {
+        outputPath += ".png";
+    }
+
+    std::error_code directoryError;
+    if (outputPath.has_parent_path()) {
+        fs::create_directories(outputPath.parent_path(), directoryError);
+        if (directoryError) {
+            err(("Failed to create output directory: " + directoryError.message()).c_str());
+            return;
+        }
+    }
+
+    std::string writeError;
+    if (!WriteRgbPng(outputPath, imageWidth, imageHeight, image, writeError)) {
+        err(("Failed to write spectrogram PNG: " + writeError).c_str());
+        return;
+    }
+
+    yay(("Spectrogram image created at: " + outputPath.string()).c_str());
+    // dude what the fuck is this spectrogram code i am so sorry for this abomination of a function
 }
 
 } // namespace Operations

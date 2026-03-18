@@ -400,12 +400,6 @@ int main(int argc, char *argv[]) {
                             .c_str());
                 }
             }
-
-            warn("READ MEE!!!! Conversion is a bit buggy and i've been working on a fix for it!! Please report issues "
-                 "to my contact email \n\t or my github repo if you encounter any problems with it");
-            warn("More prominently, it affects qualities, you can convert to opus VBR with -f opus:<vbr> but it won't "
-                 "work for .mp3 for now (as of 1.3)");
-            warn("im working on something, sorry for the inconvenience :(");
         }
 
         if (strcmp(argv[j], "-t") == 0 || strcmp(argv[j], "--tag") == 0) {
@@ -505,7 +499,32 @@ int main(int argc, char *argv[]) {
             }
             op::OrganizeIntoArtistAlbum(gb::inputFile, gb::conversionOutputDirectory);
         }
+
+        if (strcmp(argv[j], "-sg") == 0 || strcmp(argv[j], "--generatespectrogram") == 0) {
+            if (fs::is_directory(gb::inputFile)) {
+                err("Generate spectrogram requires a single audio file as input! Use -i <file>");
+                return EXIT_FAILURE;
+            }
+            if (gb::conversionOutputDirectory.empty()) {
+                err("Generate spectrogram requires an output directory specified with -po/--pathout to save the generated image!");
+                return EXIT_FAILURE;
+            }
+            fs::path outputImagePath = gb::conversionOutputDirectory / (gb::inputFile.stem().string() + "_spectrogram.png");
+            op::GenerateSpectrogram(gb::inputFile, outputImagePath);
+            std::error_code outputError;
+            const bool outputExists = fs::exists(outputImagePath, outputError);
+            const bool outputIsRegular = outputExists && fs::is_regular_file(outputImagePath, outputError);
+            const auto outputSize = outputIsRegular ? fs::file_size(outputImagePath, outputError) : 0;
+
+            if (!outputError && outputIsRegular && outputSize > 0) {
+                yay(("Spectrogram generated successfully at: " + outputImagePath.string()).c_str());
+            } else {
+                err("Spectrogram generation completed but output image was not written correctly.");
+                return EXIT_FAILURE;
+            }
+        }
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
+// hi there... 

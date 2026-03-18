@@ -28,6 +28,7 @@ Nothing much more was added. Sorry to disappoint those who were expecting a lot 
 * CoverArt+ (Brings along cover art among all conversions!)
 * Organzing Files by album! (Give a dir of random music, and bitfake will organize it - ty to uncognic)
 * Directory Tagging (YAY!)
+* Spectrogram generation (in .png)
 * Version info (WOW! BEST YET!)
 
 ## Implemented Development Features

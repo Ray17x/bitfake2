@@ -183,6 +183,7 @@ ReplayGainByTrack CalculateReplayGainTrack(const fs::path &path);
 void CalculateReplayGainAlbum(const fs::path &path);
 void OrganizeIntoAlbums(const fs::path &inputDir, const fs::path &outputDir);
 void OrganizeIntoArtistAlbum(const fs::path &inputDir, const fs::path &outputDir);
+void GenerateSpectrogram(const fs::path &inputPath, const fs::path &outputImagePath);
 } // namespace Operations
 
 #endif // OPERATIONS_HPP

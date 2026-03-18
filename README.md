@@ -6,36 +6,15 @@ One common problem was that getting a track’s metadata required long `ffprobe`
   <img src="bitfakethelogotrust.png" width="500">
 </p>
 
-# Latest Version: v1.4 (it *CAME* out.)
-This aims to be a smaller yet CRITICAL! update.
+# Latest Version (1.5)
 
-The Spectural analysis function (used to) load(s) an entire audio file into memory. This could've easily caused a massive memory leak and an OOM crash. Now, the function loads the file in smaller chunks, and performs the analysis on each chunk iteratively. This should be much more memory efficient and prevent crashes on larger files. I am super sorry to anyone who had to deal with that issue :C
+WOW! 1.5 is here. Pretty small update in terms of user space features: one additional feature of being able to generate spectrograms from audio files. (It kind of mimicks how speks formats theirs). Big update actually comes from the fucking lines of code added to the project. Spectrogram should be pretty useful. Enjoy this sample image: 
 
-Also a lot of the code for spectural analysis is OPTIMIZED! Its so much fucking FASTER DUDE!!! thats awesome, right? 
+<p align="center">
+  <img src="samplespectrogram.png" width="300">
+</p>
 
-### Heres the output of a .FLAC 96kHz vs MP3 192kbps on the new version:
-```
-----------------------
-Title: Elite
-Artist: Deftones
-Album: White Pony
-Diagnosis: Likely lossless: Even spectrum distribution detected.
-Likely Lossy: No
-Frequency Cutoff: 48000.00 Hz
-Noise Floor Elevation: 116.58 dB
-Banding Score: 1.17
-----------------------
-Title: Elite
-Artist: Deftones
-Album: White Pony
-Diagnosis: Likely lossy: Uneven spectrum distribution detected.
-Likely Lossy: Yes
-Frequency Cutoff: 24000.00 Hz
-Noise Floor Elevation: 120.05 dB
-Banding Score: 1.20
-```
-
-... (more in the changelog when i get to it im a lazy bum..)
+Nothing much more was added. Sorry to disappoint those who were expecting a lot more. Even tho this mf has no users.
 
 ## Implemented Features
 * Get metadata
@@ -49,6 +28,7 @@ Banding Score: 1.20
 * CoverArt+ (Brings along cover art among all conversions!)
 * Organzing Files by album! (Give a dir of random music, and bitfake will organize it - ty to uncognic)
 * Directory Tagging (YAY!)
+* Spectrogram generation (in .png)
 * Version info (WOW! BEST YET!)
 
 ## Implemented Development Features

@@ -38,28 +38,24 @@ int main(int argc, char *argv[]) {
         switch (argv[i][0]) {
         case '-':
             if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-                printf("Usage: ./bitfake2 [options]\n");
+                printf("Usage: ./bitfake2 [options]\n\n");
                 printf("Options:\n");
-                printf("  -h, --help\t\t\t Show this help message\n");
-                printf("  -i, --input <path>\t\t Input audio file or directory path\n");
-                printf("  -o, --output <file>\t\t Output file path (must be .txt)\n");
-                printf("  -po, --pathout <directory>\t Output directory path for conversion functions\n");
-                printf("  -t, --tag <tag:val>\t\t Tag to apply to input file (e.g. -t title:NewTitle, -t "
-                       "REPLAY_GAIN_TRACK_GAIN:-12.35)\n");
-                printf("  -f, --format <fmt[:q]>\t Conversion type (e.g. mp3:V0, flac:L8, opus:160, wav)\n");
-                printf("  -gmd, --getmetadata\t\t Get metadata of input file\n");
-                printf("  -grg, --getreplaygain\t\t Get ReplayGain information of input file\n");
-                printf("  -sa, --spectralanalysis\t Perform spectral analysis on input file\n");
-                printf("  -atrg, --applytrackreplaygain\t Calculate track replaygain and apply it to the file(s) "
-                       "(album gain will be left empty)\n");
-                printf("  -arg, --applyalbumreplaygain\t Calculate album replaygain and apply it to the file(s) (track "
-                       "gain will be left empty)\n");
-                printf(
-                    "  -oia, --organizeintoalbums\t Organize audio files in a directory into album subdirectories\n");
-                printf("  -oiaa, --organizeintoartistalbum\t Organize audio files into artist/album subdirectories\n");
-                printf(" -cvrt, --convertto <fmt[:q]>\t Convert input file(s) to specified format (e.g. mp3:V0, "
-                       "flac:L8, opus:160, wav)\n");
-                printf("  -v, --version\t\t\t Show program version\n");
+                printf("  -h,    --help                            Show this help message\n");
+                printf("  -i,    --input <path>                    Input audio file or directory path\n");
+                printf("  -o,    --output <file>                   Output file path (must be .txt)\n");
+                printf("  -po,   --pathout <directory>             Output directory path for conversion functions\n");
+                printf("  -t,    --tag <tag:val>                   Tag to apply to input file (e.g. -t title:NewTitle)\n");
+                printf("  -f,    --format <fmt[:q]>                Conversion type (e.g. mp3:V0, flac:L8, opus:160)\n");
+                printf("  -gmd,  --getmetadata                     Get metadata of input file\n");
+                printf("  -grg,  --getreplaygain                   Get ReplayGain information of input file\n");
+                printf("  -sa,   --spectralanalysis                Perform spectral analysis on input file\n");
+                printf("  -atrg, --applytrackreplaygain            Calculate track replaygain and apply to file(s)\n");
+                printf("  -arg,  --applyalbumreplaygain            Calculate album replaygain and apply to file(s)\n");
+                printf("  -oia,  --organizeintoalbums              Organize audio files into album subdirectories\n");
+                printf("  -oiaa, --organizeintoartistalbum         Organize audio files into artist/album subdirectories\n");
+                printf("  -cvrt, --convertto <fmt[:q]>             Convert input file(s) to specified format\n");
+                printf("  -sg,   --spectrogram <output.png>        Generate spectrogram image from input audio file\n");
+                printf("  -v,    --version                         Show program version\n");
                 return EXIT_SUCCESS;
             }
 
@@ -400,12 +396,6 @@ int main(int argc, char *argv[]) {
                             .c_str());
                 }
             }
-
-            warn("READ MEE!!!! Conversion is a bit buggy and i've been working on a fix for it!! Please report issues "
-                 "to my contact email \n\t or my github repo if you encounter any problems with it");
-            warn("More prominently, it affects qualities, you can convert to opus VBR with -f opus:<vbr> but it won't "
-                 "work for .mp3 for now (as of 1.3)");
-            warn("im working on something, sorry for the inconvenience :(");
         }
 
         if (strcmp(argv[j], "-t") == 0 || strcmp(argv[j], "--tag") == 0) {
@@ -505,7 +495,32 @@ int main(int argc, char *argv[]) {
             }
             op::OrganizeIntoArtistAlbum(gb::inputFile, gb::conversionOutputDirectory);
         }
+
+        if (strcmp(argv[j], "-sg") == 0 || strcmp(argv[j], "--generatespectrogram") == 0) {
+            if (fs::is_directory(gb::inputFile)) {
+                err("Generate spectrogram requires a single audio file as input! Use -i <file>");
+                return EXIT_FAILURE;
+            }
+            if (gb::conversionOutputDirectory.empty()) {
+                err("Generate spectrogram requires an output directory specified with -po/--pathout to save the generated image!");
+                return EXIT_FAILURE;
+            }
+            fs::path outputImagePath = gb::conversionOutputDirectory / (gb::inputFile.stem().string() + "_spectrogram.png");
+            op::GenerateSpectrogram(gb::inputFile, outputImagePath);
+            std::error_code outputError;
+            const bool outputExists = fs::exists(outputImagePath, outputError);
+            const bool outputIsRegular = outputExists && fs::is_regular_file(outputImagePath, outputError);
+            const auto outputSize = outputIsRegular ? fs::file_size(outputImagePath, outputError) : 0;
+
+            if (!outputError && outputIsRegular && outputSize > 0) {
+                yay(("Spectrogram generated successfully at: " + outputImagePath.string()).c_str());
+            } else {
+                err("Spectrogram generation completed but output image was not written correctly.");
+                return EXIT_FAILURE;
+            }
+        }
     }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
+// hi there... 

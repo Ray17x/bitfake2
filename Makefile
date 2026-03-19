@@ -1,5 +1,5 @@
 CXX      ?= g++
-CXXFLAGS += -std=c++17 -Wall -Wextra -I./Utilities
+CXXFLAGS += -std=c++17 -Wall -Wextra -I./Utilities -Wno-deprecated-declarations
 LDFLAGS  += -ltag -lfftw3 -lebur128 -lsndfile -lavformat -lavcodec -lswresample -lavutil
 
 BUILD_DIR := build
@@ -15,8 +15,7 @@ BIN := bitf
 all: $(BIN)
 
 $(BIN): $(OBJ)
-	$(CXX) $(CXXFLAGS) $(OBJ) -o $@ $(LDFLAGS)
-
+	$(CXX) $(CXXFLAGS) $(OBJ) -o $@ $(LDFLAGS) 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 

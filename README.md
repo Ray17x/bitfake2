@@ -6,15 +6,9 @@ One common problem was that getting a track’s metadata required long `ffprobe`
   <img src="bitfakethelogotrust.png" width="500">
 </p>
 
-# Latest Version (1.5)
+# Latest Version (1.6)
 
-WOW! 1.5 is here. Pretty small update in terms of user space features: one additional feature of being able to generate spectrograms from audio files. (It kind of mimicks how speks formats theirs). Big update actually comes from the fucking lines of code added to the project. Spectrogram should be pretty useful. Enjoy this sample image: 
-
-<p align="center">
-  <img src="samplespectrogram.png" width="300">
-</p>
-
-Nothing much more was added. Sorry to disappoint those who were expecting a lot more. Even tho this mf has no users.
+1.6 is a minor yet very very helpful update that improves accuracy and speed of the spectural analysis features. Also gets rids of warnings with a ignore warning flag but we don't talk about that.
 
 ## Implemented Features
 * Get metadata
@@ -40,8 +34,8 @@ These features are meant to make contributing to the project easier:
 * File checking functions for specific use cases (audio extension checks, magic number checks, and specific format checks)
 
 ## Yet to Be Implemented
-* MusicBrainz functionality
-* Bandcamp functionality/features
+* MusicBrainz functionality (Being considered)
+* Bandcamp functionality/features (Being considered)
 
 ## Dependencies
 

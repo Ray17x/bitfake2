@@ -50,10 +50,6 @@ extern "C" {
 #include <libswresample/swresample.h>
 }
 
-
-
-// Unless you need something from here, ignore this name space its big as fuck
-// skip to line 612 for the goodies
 namespace {
 std::string AvErrorToString(int errorCode) {
     char errorBuffer[AV_ERROR_MAX_STRING_SIZE] = {0};

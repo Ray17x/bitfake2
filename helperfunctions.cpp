@@ -247,24 +247,23 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
         tmpresult.diagnosis = "Error: Unable to read audio file.";
         return tmpresult;
     }
-
-    /*
-        WARNING WARNING WARNING!!! This loads the ENTIRE song into memory!
-        This could case a OOM err! If you understand the risk and want to implement a method that
-        does require the ENTIRE audio file being in memory, be your? guest i guess? i dont know.
-        But if you load a 2 hour lossless podcast, that could cause big problems.
-        the better implementation only takes the necessary chunks (500 give or take) for the spectral analysis,
-        if for whatever reason, you need the entire thing in memory, uncomment this and implement a feature around it :^)
-    */
-
     // while ((bytesRead = sf_read_float(sndfile, buffer, BUFFER_SIZE)) > 0) {
     //     samples.insert(samples.end(), buffer, buffer + bytesRead);
     // }
+    // Do not use ^^^^. It can OOM on large files.
 
-    // This provided solution below fixes that. It reads the file in chunks and only keeps the necessary samples for the spectral analysis in memory, which is much safer for large files.
-    // Also were mono-ifying the audio (LMAO) by averaging the channels tg
+     
     const int MAX_CHUNKS = 500;
     const int SAMPLES_NEEDED = FFT_SIZE * MAX_CHUNKS;
+    sf_count_t totalFrames = sfinfo.frames;
+    sf_count_t framesNeeded = SAMPLES_NEEDED / sfinfo.channels;
+
+    // jumping to 33% of the track, most songs are done with their intro and going BAM BAM MUSIC MUSIC BLAH BLAh
+    // good for data
+
+    totalFrames > framesNeeded * 2 ? sf_seek(sndfile, framesNeeded, SEEK_SET) : sf_seek(sndfile, 0, SEEK_SET);
+
+    float truePeak = 0.0f;
     while (samples.size() < SAMPLES_NEEDED && 
           (bytesRead = sf_readf_float(sndfile, buffer, BUFFER_SIZE / sfinfo.channels)) > 0) {
         
@@ -273,9 +272,14 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
             // ...Add up the left channel + the right channel... huminah..
             for (int c = 0; c < sfinfo.channels; c++) {
                 mono_sum += buffer[i * sfinfo.channels + c];
+                // useless comment here.
             }
             // ...And divide by the number of channels (usually 2). This creates a clean mono signal!
-            samples.push_back(mono_sum / sfinfo.channels);
+            float sampleVal = mono_sum / sfinfo.channels;
+            if (std::abs(sampleVal) > truePeak) {
+                truePeak = std::abs(sampleVal);
+            }
+            samples.push_back(sampleVal);
         }
     }
 
@@ -295,19 +299,30 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
     }
 
     // Setup FFT
+    // no longer complex->complex. 
+    // real->complex is better in this case, should save mem and time (better for slower computers)
     fftw_plan plan;
-    fftw_complex *in, *out;
-    in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
-    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * FFT_SIZE);
-    plan = fftw_plan_dft_1d(FFT_SIZE, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    double *in;
+    fftw_complex *out;
+    in = (double *)fftw_malloc(sizeof(double) * FFT_SIZE);
+    out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * (FFT_SIZE / 2 + 1));
+    plan = fftw_plan_dft_r2c_1d(FFT_SIZE, in, out, FFTW_ESTIMATE);
     std::vector<float> MeanMagnitude(FFT_SIZE / 2, 0.0f);
 
     int actualChunks = 0;
-    for (int chunk = 0; chunk < numChunks && chunk < 500; chunk++) {
+    for (int chunk = 0; chunk < numChunks && actualChunks < 500; chunk++) {
+        // Skip silent or extremely quiet chunks so we only analyze actual music
+        float chunkEnergy = 0.0f;
+        for (int i = 0; i < FFT_SIZE; i++) {
+            chunkEnergy += std::abs(samples[chunk * FFT_SIZE + i]);
+        }
+        if ((chunkEnergy / FFT_SIZE) < 0.005f) {
+            continue;
+        }
+
         for (int i = 0; i < FFT_SIZE; i++) {
             float window = 0.5f * (1.0f - cos(2.0f * M_PI * i / (FFT_SIZE - 1)));
-            in[i][0] = samples[chunk * FFT_SIZE + i] * window;
-            in[i][1] = 0.0;
+            in[i] = samples[chunk * FFT_SIZE + i] * window;
         }
 
         fftw_execute(plan);
@@ -320,8 +335,19 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
     }
 
     if (actualChunks > 0) {
+        float maxMag = 0.0f;
+        // average and find the absolute maximum magnitude
         for (int i = 0; i < FFT_SIZE / 2; i++) {
             MeanMagnitude[i] /= actualChunks;
+            if (MeanMagnitude[i] > maxMag) {
+                maxMag = MeanMagnitude[i];
+            }
+        }
+        // normalize the spectrum to a 0.0 to 1.0 scale
+        if (maxMag > 0.0f) {
+            for (int i = 0; i < FFT_SIZE / 2; i++) {
+                MeanMagnitude[i] /= maxMag;
+            }
         }
     }
 
@@ -330,13 +356,10 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
     int bitrate = fileRef.audioProperties() ? fileRef.audioProperties()->bitrate() : 0; // Get bitrate metadata
 
     std::vector<float> bandEnergies(10, 0.0f);
-    
-    // Instead of linear spacing, we exponentially increase the bin range
+
     int currentBin = 1;
-    
+    float multiplier = pow(static_cast<float>(FFT_SIZE / 2) / 1.0f, 1.0f / 10.0f);
     for (int b = 0; b < 10; b++) {
-        // Calculate an exponentially growing band size
-        float multiplier = pow(static_cast<float>(FFT_SIZE / 2) / 1.0f, 1.0f / 10.0f);
         int endBin = static_cast<int>(pow(multiplier, b + 1));
         
         if (b == 9 || endBin > (FFT_SIZE / 2)) {
@@ -370,11 +393,53 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
     float bandStdDev = sqrt(bandVariance);
     float coefficientOfVariation = bandMean > 0 ? (bandStdDev / bandMean) : 0.0f;
 
-    tmpresult.frequencyCutoff = sampleRate / 2.0f; // Nyquist
+    int spectralHoles = 0;
+    int bin_1k = static_cast<int>((1000.0f * FFT_SIZE) / sampleRate);
+    if (bin_1k == 0) bin_1k = 1;
+    
+    for (int i = bin_1k + 1; i < (FFT_SIZE / 2) - 1; i++) {
+        float currentMag = MeanMagnitude[i];
+        float prevMag = MeanMagnitude[i - 1];
+        float nextMag = MeanMagnitude[i + 1];
 
-    bool spectralLossy = coefficientOfVariation > 1.95f;
-    bool bitrateLossy = (bitrate > 32 && bitrate < 400); // Catch all MP3 VBR variants
-    tmpresult.likelyLossy = spectralLossy || bitrateLossy;
+        if (currentMag < 0.00001f && (prevMag > 0.05f || nextMag > 0.05f)) {
+            spectralHoles++;
+        }
+    }
+    
+    // Increased tolerance to 5% of bins to avoid flagging comb-filtered heavy rock/noise
+    bool highlySparse = (spectralHoles > ((FFT_SIZE / 2) * 0.05f));
+
+    tmpresult.frequencyCutoff = sampleRate / 2.0f; // Nyquist
+    bool spectralLossy = coefficientOfVariation > 1.75f || highlySparse; // Relaxed CV check for dynamic music
+ 
+    bool highFreqRolloff = false;
+    int bin_16k = static_cast<int>((16000.0f * FFT_SIZE) / sampleRate);
+    int bin_20k = static_cast<int>((20000.0f * FFT_SIZE) / sampleRate);
+    int max_bin = FFT_SIZE / 2;
+    
+    if (bin_16k < max_bin) {
+        float energyAbove16k = 0.0f;
+        float energyAbove20k = 0.0f;
+        
+        for (int i = bin_16k; i < max_bin; i++) {
+            energyAbove16k += MeanMagnitude[i];
+            if (i >= bin_20k) energyAbove20k += MeanMagnitude[i];
+        }
+        
+        energyAbove16k /= (max_bin - bin_16k);
+        energyAbove20k = (bin_20k < max_bin) ? (energyAbove20k / (max_bin - bin_20k)) : 0.0f;
+
+        if (energyAbove16k < 0.0001f) {
+            highFreqRolloff = true;
+        } else if (sampleRate <= 48000.0f && bin_20k < max_bin && energyAbove20k < 0.00005f) {
+            highFreqRolloff = true;
+        }
+    }
+
+    bool bitrateLossy = (bitrate > 32 && bitrate < 320); // Catch all MP3 VBR variants
+    
+    tmpresult.likelyLossy = spectralLossy || bitrateLossy || highFreqRolloff;
 
     tmpresult.noiseFlorElevation = coefficientOfVariation * 100.0f;
     tmpresult.bandingScore = coefficientOfVariation;
@@ -383,6 +448,14 @@ SpectralAnalysisResult SpectralAnalysis(const fs::path &path) {
         tmpresult.diagnosis = "Likely lossy: Uneven spectrum distribution detected.";
     } else {
         tmpresult.diagnosis = "Likely lossless: Even spectrum distribution detected.";
+    }
+
+    if (truePeak >= 0.999f) {
+        tmpresult.diagnosis += "\n\t(Warning: Audio is clipping/hard-limited)";
+    }
+
+    if (sampleRate > 48000.0f) {
+        tmpresult.diagnosis += "\n\t(Note: Sample rate above 48kHz may affect analysis accuracy)";
     }
 
     fftw_destroy_plan(plan);
@@ -687,8 +760,3 @@ std::string OutputExtensionForFormat(AudioFormat format) {
     }
 }
 } // namespace Operations
-
-// constexpr AudioMetadata GetMetaData(const fs::path& path);
-
-// constexpr ReplayGainInfo GetReplayGain(const fs::path& path);
-// constexpr MusicBrainzInfo GetMusicBrainzInfo(const fs::path& path);

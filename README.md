@@ -12,6 +12,7 @@ One common problem was that getting a track’s metadata required long `ffprobe`
 <p align="center">
   <img src="samplesg.png" width="500">
 </p>
+
 ## Implemented Features
 * Get metadata
 * Get ReplayGain info (useful for music players)

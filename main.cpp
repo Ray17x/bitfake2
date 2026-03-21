@@ -61,8 +61,8 @@ int main(int argc, char *argv[]) {
 
             if (strcmp(argv[i], "--input") == 0 || strcmp(argv[i], "-i") == 0) {
                 if (i + 1 < argc) {
-                    plog("Input file specified in flag: ");
-                    yay(argv[i + 1]);
+                    // plog("Input file specified in flag: ");
+                    // yay(argv[i + 1]);
                     gb::inputFile = argv[i + 1];
                     i++; // Skip the next argument since it's the input file
                 } else {
@@ -73,8 +73,8 @@ int main(int argc, char *argv[]) {
 
             if (strcmp(argv[i], "--output") == 0 || strcmp(argv[i], "-o") == 0) {
                 if (i + 1 < argc) {
-                    plog("Output path specified in flag: ");
-                    yay(argv[i + 1]);
+                    // plog("Output path specified in flag: ");
+                    // yay(argv[i + 1]);
                     gb::outputFile = argv[i + 1];
                     i++; // Skip the next argument since it's the output file
                 } else {

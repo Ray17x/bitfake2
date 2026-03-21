@@ -34,8 +34,7 @@ These features are meant to make contributing to the project easier:
 * File checking functions for specific use cases (audio extension checks, magic number checks, and specific format checks)
 
 ## Yet to Be Implemented
-* MusicBrainz functionality (Being considered)
-* Bandcamp functionality/features (Being considered)
+* Maybe musicbrainz on 1.7 or 1.8 relative.
 
 ## Dependencies
 

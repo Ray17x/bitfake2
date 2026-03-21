@@ -1755,7 +1755,14 @@ void GenerateSpectrogram(const fs::path &inputPath, const fs::path &outputImageP
         err("Input path does not exist or is not a regular file.");
         return;
     }
-
+    std::string tmpTitle, tmpArtist;
+    TagLib::FileRef tagFile(inputPath.string().c_str());
+    if (!tagFile.isNull() && tagFile.tag()) {
+        tmpTitle = tagFile.tag()->title().to8Bit(true);
+        tmpArtist = tagFile.tag()->artist().to8Bit(true);
+    } else {
+        warn("Failed to read tags from input file for spectrogram title. Title and artist will be omitted from the image.");
+    }
     SF_INFO sfinfo{};
     SNDFILE *sndfile = sf_open(inputPath.string().c_str(), SFM_READ, &sfinfo);
     if (!sndfile) {
@@ -1943,20 +1950,14 @@ void GenerateSpectrogram(const fs::path &inputPath, const fs::path &outputImageP
                        labelColor);
     }
 
-    const std::string mainTitle = "SPECTROGRAM";
+    std::ostringstream titleStream;
+    titleStream << std::fixed << std::setprecision(1) << "("<< tmpTitle << " - " << tmpArtist << ")" << " - SPECTROGRAM - SR " << (sfinfo.samplerate / 1000.0)
+                << " KHZ / DUR " << FormatMinutesSeconds(durationSec);
+    const std::string mainTitle = titleStream.str();
     const int mainTitleScale = 3;
     const int mainTitleWidth = LabelTextWidth(mainTitle, mainTitleScale);
     DrawLabelText(image, imageWidth, imageHeight, (imageWidth - mainTitleWidth) / 2, 8, mainTitleScale, mainTitle,
                   labelColor);
-
-    std::ostringstream infoStream;
-    infoStream << std::fixed << std::setprecision(1) << "SR " << (sfinfo.samplerate / 1000.0)
-               << " KHZ / DUR " << FormatMinutesSeconds(durationSec);
-    const std::string infoLine = infoStream.str();
-    const int infoScale = 2;
-    const int infoWidth = LabelTextWidth(infoLine, infoScale);
-    DrawLabelText(image, imageWidth, imageHeight, (imageWidth - infoWidth) / 2, 34, infoScale, infoLine,
-                  Rgb{180, 180, 180});
 
     const std::string xAxisTitle = "TIME (S)";
     const int xAxisTitleScale = 2;

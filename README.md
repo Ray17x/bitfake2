@@ -12,7 +12,6 @@ One common problem was that getting a track’s metadata required long `ffprobe`
 1.7 another minor update. Adds some text to the spectrogram.
 <p align="center">
   <img src="samplesg.png" width="500">
-  <img src="bitfakethelogotrust.png" width="500">
 </p>
 
 ## Implemented Features

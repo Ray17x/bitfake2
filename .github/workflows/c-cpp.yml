@@ -1,0 +1,42 @@
+name: Build and Test bitfake2
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libfftw3-dev \
+            libebur128-dev \
+            libsndfile1-dev \
+            pkg-config
+
+      - name: Build bitfake2
+        run: |
+          make 
+
+      - name: Verify Binary
+        run: |
+          # Check if the binary was actually created
+          if [ ! -f ./bitfake2 ]; then
+            echo "Binary bitfake2 not found!"
+            exit 1
+          fi
+
+      - name: Smoke Test (Run on sample)
+        run: |
+          ./bitf -v
+          ./bitf -h

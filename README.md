@@ -106,6 +106,34 @@ Overall dependency list (for other distros):
 ```
 build-base taglib-dev fftw-dev ebur128-dev libsndfile-dev libavformat libavcodec libavutil libswresample
 ```
+NixOS:
+
+Users that are using npins:
+```sh
+npins add github Ray17x bitfake2 --branch main
+```
+Then in your packages module:
+```nix
+let
+  sources = import ../npins/default.nix;
+in {
+  environment.systemPackages = [
+    (pkgs.callPackage "${sources.bitfake2}/package.nix" {})
+  ];
+}
+```
+> [!NOTE]
+> This might differ to other people's npins configuration but mostly should be the same.
+
+Users that are using flakes:
+add this to your flake.nix
+```nix
+inputs.bitfake2.url = "github:Ray17x/bitfake2";
+```
+then add to your system packages:
+```nix
+environment.systemPackages = [ inputs.bitfake2.packages.${pkgs.system}.default ];
+```
 
 2. Clone the project and compile
 

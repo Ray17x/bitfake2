@@ -19,11 +19,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
+            pkg-config \
+            cmake \
+            libtag1-dev \
             libfftw3-dev \
             libebur128-dev \
             libsndfile1-dev \
-            pkg-config \
-            libtag1-dev
+            libavformat-dev \
+            libavcodec-dev \
+            libavutil-dev \
+            libswresample-dev
 
       - name: Build bitfake2
         run: |

@@ -1,0 +1,23 @@
+name: Build on OpenBSD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-openbsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build in OpenBSD
+        uses: vmactions/openbsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkg_add taglib fftw3 libebur128 libsndfile ffmpeg
+          run: |
+            make -f BSD.make
+            ./bitf -v
+            ./bitf -h

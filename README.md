@@ -177,8 +177,6 @@ To install
 make -f BSD.make install
 ```
 OpenBSD:
-> [!NOTE]
-> OpenBSD is untested
 
 Clone the bitfake2 repo.
 ```

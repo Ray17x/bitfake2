@@ -134,6 +134,8 @@ Then add to your system packages:
 ```nix
 environment.systemPackages = [ inputs.bitfake2.packages.${pkgs.system}.default ];
 ```
+FreeBSD:
+[stub]...
 
 2. Clone the project and compile
 

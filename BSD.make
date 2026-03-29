@@ -7,17 +7,18 @@ LOCALBASE?= /usr/pkg
 CXX= g++
 .  if exists($(LOCALBASE)/include/ffmpeg8)
 CXXFLAGS += -I$(LOCALBASE)/include/ffmpeg8
-LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg8
+LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg8 -Wl,-rpath,$(LOCALBASE)/lib/ffmpeg8
 .  elif exists($(LOCALBASE)/include/ffmpeg7)
 CXXFLAGS += -I$(LOCALBASE)/include/ffmpeg7
-LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg7
+LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg7 -Wl,-rpath,$(LOCALBASE)/lib/ffmpeg7
 .  elif exists($(LOCALBASE)/include/ffmpeg6)
 CXXFLAGS += -I$(LOCALBASE)/include/ffmpeg6
-LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg6
+LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg6 -Wl,-rpath,$(LOCALBASE)/lib/ffmpeg6
 .  elif exists($(LOCALBASE)/include/ffmpeg5)
 CXXFLAGS += -I$(LOCALBASE)/include/ffmpeg5
-LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg5
+LDFLAGS  += -L$(LOCALBASE)/lib/ffmpeg5 -Wl,-rpath,$(LOCALBASE)/lib/ffmpeg5
 .  endif
+LDFLAGS  += -Wl,-rpath,$(LOCALBASE)/lib
 .elif $(OS) == "OpenBSD"
 LOCALBASE?= /usr/local
 CXX= clang++

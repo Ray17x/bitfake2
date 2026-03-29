@@ -145,6 +145,10 @@ Once you have installed the deps:
 ```sh
 make -f FreeBSD.mk
 ```
+```sh
+sudo make -f FreeBSD.mk install
+```
+
 2. Clone the project and compile
 
 Using `git clone`:

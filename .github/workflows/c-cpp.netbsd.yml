@@ -1,0 +1,23 @@
+name: Build on NetBSD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-openbsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build in OpenBSD
+        uses: vmactions/netbsd-vm@v1
+        with:
+          usesh: true
+          prepare: |
+            pkgin install taglib fftw3 libebur128 libsndfile ffmpeg8
+          run: |
+            make -f BSD.make install
+            bitf -v
+            bitf -h

@@ -150,9 +150,7 @@ sudo make -f BSD.make install
 ```
 
 NetBSD:
-> [!NOTE]
-> NetBSD is untested
->
+
 To install the dependency's needed for bitfake2
 ```sh
 pkgin install taglib fftw libebur128 libsndfile ffmpeg7

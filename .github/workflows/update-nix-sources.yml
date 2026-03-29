@@ -1,0 +1,27 @@
+name: update flake/npins sources
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Update flake.lock
+        run: nix flake update
+      - name: Update npins
+        run: nix-shell -p npins --run "npins update && npins upgrade"
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: update flake.lock and npins'
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com

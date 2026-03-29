@@ -1,0 +1,24 @@
+name: Build on FreeBSD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-freebsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.4"
+          usesh: true
+          prepare: |
+            pkg install -y taglib fftw3 libebur128 libsndfile ffmpeg
+          run: |
+            make -f BSD.make
+            ./bitf -v
+            ./bitf -h

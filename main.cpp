@@ -409,7 +409,7 @@ int main(int argc, char *argv[]) {
             tl::FileRef f(gb::inputFile.c_str());
             if (f.isNull() || !f.tag()) {
                 err("Failed to open file for metadata commit");
-                return false;
+                return EXIT_FAILURE;
             }
 
             tl::PropertyMap existingProps = f.file()->properties();

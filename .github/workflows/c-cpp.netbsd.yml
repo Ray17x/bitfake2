@@ -7,11 +7,11 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-NetBSD:
+  build-netbsd:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build in OpenBSD
+      - name: Build in NetBSD
         uses: vmactions/netbsd-vm@v1
         with:
           usesh: true

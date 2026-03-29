@@ -143,12 +143,48 @@ sudo pkg install taglib fftw3 libebur128 libsndfile ffmpeg
 ```
 Once you have installed the deps:
 ```sh
-make -f FreeBSD.mk
+make -f BSD.make
 ```
 ```sh
-sudo make -f FreeBSD.mk install
+sudo make -f BSD.make install
 ```
 
+NetBSD:
+> [!NOTE]
+> NetBSD is untested
+>
+To install the dependency's needed for bitfake2
+```sh
+pkgin install taglib fftw libebur128 libsndfile ffmpeg7
+```
+Once you have the dependency's for bitfake2, now compile.
+```sh
+make -f BSD.make
+```
+To install
+```
+make -f BSD.make install
+```
+OpenBSD:
+> [!NOTE]
+> OpenBSD is untested
+
+To install the dependency's needed for bitfake2
+```sh
+pkg_add taglib fftw3 libebur128 libsndfile ffmpeg
+```
+
+Once you have the dependency's for bitfake2, now compile.
+```sh
+make -f BSD.make
+```
+To install
+```
+make -f BSD.make install
+```
+
+To install the dependency's needed for bitfake2
+```
 2. Clone the project and compile
 
 Using `git clone`:

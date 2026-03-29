@@ -192,6 +192,11 @@ make -f BSD.make
 make -f BSD.make install
 ```
 
+Overall dependency list (for other distros):
+```
+build-base taglib-dev fftw-dev ebur128-dev libsndfile-dev libavformat libavcodec libavutil libswresample
+```
+
 2. Clone the project and compile
 
 Using `git clone`:

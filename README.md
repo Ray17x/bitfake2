@@ -135,10 +135,17 @@ Then add to your system packages:
 ```nix
 environment.systemPackages = [ inputs.bitfake2.packages.${pkgs.system}.default ];
 ```
+
 FreeBSD:
 
+Clone the bitfake2 repo
+```sh
+git clone https://github.com/Ray17x/bitfake2
+```
 > [!WARNING]
 > `ebur128` conflicts with `libebur128`.
+
+
 ```sh
 sudo pkg install taglib fftw3 libebur128 libsndfile ffmpeg
 ```
@@ -151,6 +158,11 @@ sudo make -f BSD.make install
 ```
 
 NetBSD:
+
+Clone the bitfake2 repo
+```sh
+git clone https://github.com/Ray17x/bitfake2
+```
 
 To install the dependency's needed for bitfake2
 ```sh
@@ -167,6 +179,11 @@ make -f BSD.make install
 OpenBSD:
 > [!NOTE]
 > OpenBSD is untested
+
+Clone the bitfake2 repo.
+```
+git clone https://github.com/Ray17x/bitfake2
+```
 
 To install the dependency's needed for bitfake2
 ```sh

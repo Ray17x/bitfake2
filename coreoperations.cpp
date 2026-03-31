@@ -2165,7 +2165,120 @@ void OrganizeAlbumsIntoArtists(const fs::path &rootDir) {
         warn(("Failed folder(s): " + std::to_string(failedCount)).c_str());
     }
 }
-void RenameFilesFromTags(const fs::path &rootDir);
+void RenameFilesFromTags(const fs::path &rootDir) {
+      if (!fs::exists(rootDir)) {
+        err("Input path does not exist.");
+        return;
+    }
+
+    std::vector<fs::path> filesToRename;
+
+    if (fs::is_regular_file(rootDir)) {
+        if (fc::IsValidAudioFile(rootDir)) {
+            filesToRename.push_back(rootDir);
+        } else {
+            err("Input file is not a valid audio file.");
+            return;
+        }
+    } else if (fs::is_directory(rootDir)) {
+        for (const auto &entry : fs::recursive_directory_iterator(rootDir)) {
+            if (entry.is_regular_file() && fc::IsValidAudioFile(entry.path())) {
+                filesToRename.push_back(entry.path());
+            }
+        }
+    } else {
+        err("Input path is neither a file nor a directory.");
+        return;
+    }
+
+    if (filesToRename.empty()) {
+        warn("No valid audio files found to rename.");
+        return;
+    }
+
+    int renamedCount = 0;
+    int skippedCount = 0;
+    int failedCount = 0;
+
+    for (const fs::path &filePath : filesToRename) {
+        TagLib::FileRef fileRef(filePath.string().c_str());
+        if (fileRef.isNull() || !fileRef.tag()) {
+            warn(("Skipping file (no tags): " + filePath.filename().string()).c_str());
+            ++skippedCount;
+            continue;
+        }
+
+        TagLib::Tag *tag = fileRef.tag();
+        std::string artist = tag->artist().to8Bit(true);
+        std::string title = tag->title().to8Bit(true);
+        std::string trackNum;
+
+        if (tag->track() > 0) {
+            std::ostringstream oss;
+            oss << std::setw(2) << std::setfill('0') << tag->track();
+            trackNum = oss.str();
+        }
+
+        if (title.empty()) {
+            warn(("Skipping file (no title tag): " + filePath.filename().string()).c_str());
+            ++skippedCount;
+            continue;
+        }
+
+        // build new filename
+        std::string newBaseName;
+        if (!trackNum.empty()) {
+            newBaseName = trackNum + " - ";
+        }
+        if (!artist.empty()) {
+            newBaseName += artist + " - ";
+        }
+
+        newBaseName += title;
+        // prevent bad things
+        newBaseName = sanitize_dir_name(newBaseName);
+        
+        fs::path newPath = filePath.parent_path() / (newBaseName + filePath.extension().string());
+
+        std::error_code ec;
+        if (fs::equivalent(filePath, newPath, ec) && !ec) {
+            ++skippedCount;
+            continue;
+        }
+
+        // check existing files
+        if (fs::exists(newPath)) {
+            int suffix = 2;
+            fs::path candidate;
+            do {
+                candidate = filePath.parent_path() / 
+                    (newBaseName + " (" + std::to_string(suffix) + ")" + filePath.extension().string());
+                ++suffix;
+            } while (fs::exists(candidate));
+            newPath = candidate;
+        }
+
+        // do the renaming
+        ec.clear();
+        fs::rename(filePath, newPath, ec);
+        if (ec) {
+            err(("Failed to rename file: " + filePath.filename().string() + " (" + ec.message() + ")").c_str());
+            ++failedCount;
+            continue;
+        }
+
+        plog(("Renamed: " + filePath.filename().string() + " -> " + newPath.filename().string()).c_str());
+        ++renamedCount;
+    }
+    yay(("Renamed " + std::to_string(renamedCount) + " file(s).").c_str());
+    if (skippedCount > 0) {
+        plog(("Skipped " + std::to_string(skippedCount) + " file(s).").c_str());
+    }
+    if (failedCount > 0) {
+        warn(("Failed " + std::to_string(failedCount) + " file(s).").c_str());
+    }
+}
+
 void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std::string &value) {
     // fuck
 

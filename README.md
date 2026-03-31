@@ -247,6 +247,11 @@ Rename album subfolders to `Artist - Album (Year)` based on tags:
 ./bitf -i /path/to/albums -raf
 ```
 
+Sort album subdirectories into artist subdirectories:
+```sh
+./bitf -i /path/to/albums -oaia
+```
+
 Note: For some commands, `-i` can also be a directory path, and Bitfake will process supported audio files inside it.
 
 4. Cleaning up project

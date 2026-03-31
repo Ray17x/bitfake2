@@ -23,6 +23,7 @@ One common problem was that getting a track's metadata required long `ffprobe` c
 * CoverArt+ (Brings along cover art among all conversions!)
 * Organizing Files by album! (Give a dir of random music, and bitfake will organize it - ty to uncognic)
 * Directory Tagging (YAY!)
+* Album folder renaming from tags (Artist - Album (Year))
 * Spectrogram generation (in .png)
 * Version info (WOW! BEST YET!)
 
@@ -239,6 +240,11 @@ Get ReplayGain info:
 Run spectral analysis:
 ```sh
 ./bitf -i /path/to/song.flac -sa
+```
+
+Rename album subfolders to `Artist - Album (Year)` based on tags:
+```sh
+./bitf -i /path/to/albums -raf
 ```
 
 Note: For some commands, `-i` can also be a directory path, and Bitfake will process supported audio files inside it.

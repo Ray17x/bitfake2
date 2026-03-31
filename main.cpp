@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
                 printf("  -arg,  --applyalbumreplaygain            Calculate album replaygain and apply to file(s)\n");
                 printf("  -oia,  --organizeintoalbums              Organize audio files into album subdirectories\n");
                 printf("  -oiaa, --organizeintoartistalbum         Organize audio files into artist/album subdirectories\n");
+                printf("  -oaia, --organizealbumsintoartists       Organize album subdirectories into artist subdirectories\n");
                 printf("  -raf,  --renamealbumfolders              Rename album subfolders to Artist - Album (Year)\n");
                 printf("  -cvrt, --convertto <fmt[:q]>             Convert input file(s) to specified format\n");
                 printf("  -sg,   --spectrogram <output.png>        Generate spectrogram image from input audio file\n");
@@ -497,6 +498,22 @@ int main(int argc, char *argv[]) {
             op::OrganizeIntoArtistAlbum(gb::inputFile, gb::conversionOutputDirectory);
         }
 
+        if (strcmp(argv[j], "-oaia") == 0 || strcmp(argv[j], "--organizealbumsintoartists") == 0) {
+            if (!fs::is_directory(gb::inputFile)) {
+                err("Organize albums into artists requires a directory as input! Use -i <directory>");
+                return EXIT_FAILURE;
+            }
+            op::OrganizeAlbumsIntoArtists(gb::inputFile);
+        }
+        /*
+        if (strcmp(argv[j], "-rffa") == 0 || strcmp(argv[j], "--renamefilesfromtags") == 0) {
+            if (!fs::is_directory(gb::inputFile)) {
+                err("Rename files from tags requires a directory as input! Use -i <directory>");
+                return EXIT_FAILURE;
+            }
+            op::RenameFilesFromTags(gb::inputFile);
+        }
+        */
         if (strcmp(argv[j], "-raf") == 0 || strcmp(argv[j], "--renamealbumfolders") == 0) {
             if (!fs::is_directory(gb::inputFile)) {
                 err("Rename album folders requires a directory as input! Use -i <directory>");

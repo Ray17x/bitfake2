@@ -1675,7 +1675,7 @@ void RenameAlbumDirectoriesFromTags(const fs::path &rootDir) {
                 artist = "Various Artists";
             }
         }
-        
+
         bool yearExists = true;
         const std::string year = most_common_value(yearCounts);
         if (year.empty()) {
@@ -2017,7 +2017,155 @@ void OrganizeIntoArtistAlbum(const fs::path &inputDir, const fs::path &outputDir
         warn(("Failed to move " + std::to_string(failedCount) + " file(s).").c_str());
     }
 }
+void OrganizeAlbumsIntoArtists(const fs::path &rootDir) {
+    if (!fs::exists(rootDir) || !fs::is_directory(rootDir)) {
+        err("Input path does not exist or is not a directory.");
+        return;
+    }
 
+    std::vector<fs::path> albumDirs;
+    // only direct subdirs are considered albums, we won't try to be smarter than the user about it
+    for (const auto &entry : fs::directory_iterator(rootDir)) {
+        if (entry.is_directory()) {
+            albumDirs.push_back(entry.path());
+        }
+    }
+
+    if (albumDirs.empty()) {
+        warn("No album directories found to sort.");
+        return;
+    }
+
+    int sortedCount = 0;
+    int skippedCount = 0;
+    int failedCount = 0;
+
+    for (const fs::path &albumDir : albumDirs) {
+        std::unordered_map<std::string, std::size_t> artistCounts;
+        std::unordered_map<std::string, std::size_t> albumArtistCounts;
+        std::size_t audioFileCount = 0;
+
+        try {
+            // scan files 
+            for (const auto &entry : fs::recursive_directory_iterator(albumDir)) {
+                if (!entry.is_regular_file()) {
+                    continue;
+                }
+                if (!fc::IsValidAudioFile(entry.path())) {
+                    continue;
+                }
+
+                audioFileCount++;
+
+                TagLib::FileRef fileRef(entry.path().string().c_str());
+                if (fileRef.isNull() || !fileRef.tag() || !fileRef.file()) {
+                    continue;
+                }
+
+                TagLib::Tag *tag = fileRef.tag();
+                TagLib::PropertyMap properties = fileRef.file()->properties();
+
+                std::string artist;
+                if (!tag->artist().isEmpty()) {
+                    artist = tag->artist().to8Bit(true);
+                }
+                if (artist.empty()) {
+                    artist = first_property_value(properties, "ARTIST");
+                }
+                increment_value_count(artistCounts, artist);
+
+                std::string albumArtist = first_property_value(properties, "ALBUMARTIST");
+                if (albumArtist.empty()) {
+                    albumArtist = first_property_value(properties, "ALBUM ARTIST");
+                }
+                if (albumArtist.empty()) {
+                    albumArtist = first_property_value(properties, "ALBUM_ARTIST");
+                }
+                increment_value_count(albumArtistCounts, albumArtist);
+            }
+        } catch (const std::exception &e) {
+            err(("Failed to scan folder for metadata: " + albumDir.string() + " (" + e.what() + ")").c_str());
+            ++failedCount;
+            continue;
+        }
+
+        if (audioFileCount == 0) {
+            warn(("Skipping folder (no audio files): " + albumDir.filename().string()).c_str());
+            ++skippedCount;
+            continue;
+        }
+
+        // prefer ALBUMARTIST
+        std::string artist = most_common_value(albumArtistCounts);
+        if (artist.empty()) {
+            if (artistCounts.empty()) {
+                artist = "Unknown Artist";
+            } else if (artistCounts.size() == 1) {
+                artist = artistCounts.begin()->first;
+            } else {
+                artist = "Various Artists";
+            }
+        }
+
+        std::string safeArtist = sanitize_dir_name(artist);
+        fs::path artistDir = rootDir / safeArtist;
+
+        // check if already in correct place
+        std::error_code ec;
+        if (albumDir.parent_path() == artistDir) {
+            ++skippedCount;
+            continue;
+        }
+
+        // create it if needed
+        if (!fs::exists(artistDir)) {
+            fs::create_directories(artistDir, ec);
+            if (ec) {
+                err(("Failed to create artist directory: " + artistDir.string() + " (" + ec.message() + ")").c_str());
+                ++failedCount;
+                continue;
+            }
+            plog(("Created artist directory: " + safeArtist).c_str());
+        }
+
+        fs::path destination = artistDir / albumDir.filename();
+
+        // handle naming conflicts
+        if (fs::exists(destination)) {
+            if (fs::equivalent(albumDir, destination, ec) && !ec) {
+                ++skippedCount;
+                continue;
+            }
+
+            int suffix = 2;
+            std::string baseName = albumDir.filename().string();
+            while (fs::exists(destination)) {
+                destination = artistDir / (baseName + " (" + std::to_string(suffix) + ")");
+                ++suffix;
+            }
+        }
+
+        // do the 
+        ec.clear();
+        fs::rename(albumDir, destination, ec);
+        if (ec) {
+            err(("Failed to move folder: " + albumDir.filename().string() + " (" + ec.message() + ")").c_str());
+            ++failedCount;
+            continue;
+        }
+
+        plog(("Moved album folder: " + albumDir.filename().string() + " -> " + safeArtist + "/" + destination.filename().string()).c_str());
+        ++sortedCount;
+    }
+    yay(("Sorted " + std::to_string(sortedCount) + " album folder(s) into artist directories.").c_str());
+    if (skippedCount > 0) {
+        plog(("Skipped folder(s): " + std::to_string(skippedCount)).c_str());
+    }
+    if (failedCount > 0) {
+        warn(("Failed folder(s): " + std::to_string(failedCount)).c_str());
+    }
+}
+void RenameFilesFromTags(const fs::path &rootDir);
 void MassTagDirectory(const fs::path &dirPath, const std::string &tag, const std::string &value) {
     // fuck
 

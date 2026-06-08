@@ -258,4 +258,3 @@ mkFunctor (
   else
     throw "Unsupported format version ${toString version} in sources.json. Try running `npins upgrade`"
 )
-

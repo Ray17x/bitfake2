@@ -1,4 +1,8 @@
 # Bitfake
+
+> [!NOTE]
+> We have moved to [Codeberg](https://codeberg.org/Ray18x/bitfake2).
+
 Bitfake was originally created to detect fake `.FLAC` files through spectral analysis. It has since grown into a multipurpose CLI tool for handling music more easily and efficiently.
 
 One common problem was that getting a track's metadata required long `ffprobe` commands with messy output. Converting music with `ffmpeg` was also repetitive. The command itself is easy to remember, but writing scripts to convert entire directories felt inefficient and slow. This project now performs metadata and conversion tasks directly through linked libraries (TagLib/libsndfile/libav*).
